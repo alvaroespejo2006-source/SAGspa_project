@@ -149,3 +149,12 @@ export const verifyEmailSchema = z.object({
 });
 
 export type VerifyEmailInput = z.infer<typeof verifyEmailSchema>;
+
+// --- Schema de reenvío del email de verificación (HU-003) ---
+// ¿Qué? Solo pide el correo de la cuenta pendiente de verificar.
+// ¿Para qué? Permitir pedir un enlace nuevo cuando el anterior expiró (CA-003.2).
+export const resendVerificationSchema = z.object({
+  email: z.string().trim().toLowerCase().email('El email no tiene un formato válido.'),
+});
+
+export type ResendVerificationInput = z.infer<typeof resendVerificationSchema>;

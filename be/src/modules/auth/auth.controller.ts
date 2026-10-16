@@ -16,6 +16,7 @@ import type {
   ForgotPasswordInput,
   ResetPasswordInput,
   VerifyEmailInput,
+  ResendVerificationInput,
 } from './auth.schema.js';
 
 // ¿Qué? Registra un nuevo cliente.
@@ -116,6 +117,25 @@ export async function verifyEmail(
     res.status(200).json({
       success: true,
       message: 'Email verificado correctamente. Ya puedes iniciar sesión.',
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// ¿Qué? Reenvía el email de verificación (HU-003, CA-003.2).
+// ¿Para qué? Siempre responde 200 con el mismo mensaje para no revelar si el email existe
+//   o si la cuenta ya estaba verificada.
+export async function resendVerification(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    await authService.resendVerificationEmail(req.body as ResendVerificationInput);
+    res.status(200).json({
+      success: true,
+      message: 'Si tu cuenta está pendiente de verificación, te enviamos un nuevo enlace a tu correo.',
     });
   } catch (err) {
     next(err);

@@ -41,6 +41,7 @@ import type {
   ForgotPasswordInput,
   ResetPasswordInput,
   VerifyEmailInput,
+  ResendVerificationInput,
 } from './auth.schema.js';
 
 // ¿Qué? Tipo de respuesta de usuario — nunca expone hashedPassword.
@@ -371,4 +372,24 @@ export async function verifyEmail(data: VerifyEmailInput): Promise<void> {
   ]);
 
   logEmailVerified(tokenRecord.userId);
+}
+
+// ¿Qué? Genera y envía un enlace de verificación nuevo para una cuenta aún sin verificar.
+// ¿Para qué? Sin esto, si el enlace de 24 h expiraba (CA-003.2) el usuario no tenía
+//   forma de activar su cuenta: no podía iniciar sesión ni volver a registrarse.
+// ¿Impacto? Siempre termina sin error aunque el correo no exista o ya esté verificado —
+//   el controller responde lo mismo en todos los casos para no revelar qué cuentas
+//   existen (mismo criterio que forgot-password, OWASP A07).
+export async function resendVerificationEmail(data: ResendVerificationInput): Promise<void> {
+  const user = await db.user.findUnique({ where: { email: data.email } });
+  if (!user || user.isEmailVerified) return;
+
+  // ¿Qué? Invalida los enlaces anteriores que sigan pendientes.
+  // ¿Para qué? Que solo el último correo recibido sirva para activar la cuenta.
+  await db.emailVerificationToken.updateMany({
+    where: { userId: user.id, used: false },
+    data: { used: true },
+  });
+
+  await issueEmailVerification(user);
 }
