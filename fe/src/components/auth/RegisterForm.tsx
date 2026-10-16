@@ -16,6 +16,7 @@ import { Button } from '@/components/ui/Button';
 import { InputField } from '@/components/ui/InputField';
 import { Alert } from '@/components/ui/Alert';
 import { LEGAL_VERSION } from '@/config/legal';
+import { getMissingPasswordRequirements } from '@/utils/password';
 
 // ¿Qué? Caracteres NO permitidos en nombre/apellido: todo lo que no sea letra
 //   (de cualquier idioma), espacio, apóstrofo o guion. Se usa para filtrar al teclear.
@@ -131,14 +132,18 @@ export function RegisterForm({ onNavigate, onGoToLogin }: RegisterFormProps) {
     } else if (!NAME_REGEX.test(formData.lastName.trim())) {
       newErrors.lastName = 'El apellido solo puede contener letras.';
     }
-    if (!PHONE_REGEX.test(formData.phone.trim())) {
+    // ¿Qué? Vacío → "obligatorio" (CA-001.2); con datos pero mal formado → regla de dígitos.
+    if (!formData.phone.trim()) {
+      newErrors.phone = 'El teléfono es obligatorio.';
+    } else if (!PHONE_REGEX.test(formData.phone.trim())) {
       newErrors.phone = 'El teléfono debe tener entre 7 y 15 dígitos.';
     }
     if (!EMAIL_REGEX.test(formData.email.trim())) {
       newErrors.email = 'Ingresa un correo válido, por ejemplo: nombre@dominio.com';
     }
-    if (!/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/.test(formData.password)) {
-      newErrors.password = 'La contraseña debe tener 8+ caracteres, mayúscula, minúscula y número.';
+    const missingRequirements = getMissingPasswordRequirements(formData.password);
+    if (missingRequirements.length > 0) {
+      newErrors.password = `A la contraseña le falta: ${missingRequirements.join(', ')}.`;
     }
     if (formData.password !== formData.confirmPassword) {
       newErrors.confirmPassword = 'Las contraseñas no coinciden.';
@@ -351,7 +356,10 @@ export function RegisterForm({ onNavigate, onGoToLogin }: RegisterFormProps) {
       </div>
 
       <div className="flex justify-end pt-2">
-        <Button type="submit" isLoading={isLoading} disabled={!acceptedLegal}>
+        {/* ¿Qué? Se combina isLoading en disabled: si solo se pasa !acceptedLegal, ese valor
+            reemplaza el disabled automático del Button y el formulario se podía enviar dos
+            veces mientras la petición estaba en curso (CA-001.9). */}
+        <Button type="submit" isLoading={isLoading} disabled={!acceptedLegal || isLoading}>
           Crear cuenta
         </Button>
       </div>

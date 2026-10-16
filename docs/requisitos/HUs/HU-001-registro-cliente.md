@@ -14,8 +14,10 @@
 | **Título**       | Registro de cliente  |
 | **Módulo**       | Autenticación         |
 | **Prioridad**    | Alta                  |
-| **Estado**       | Por implementar       |
+| **Estado**       | Implementada          |
 | **RF asociados** | RF-001                |
+| **Responsable**  | Alvaro Espejo         |
+| **Rama**         | `feature/HU-001-registro-cliente` |
 
 ---
 
@@ -37,12 +39,12 @@
 ### CA-001.2 — Teléfono obligatorio
 - **Dado que** estoy completando el formulario de registro,
 - **cuando** dejo el campo de teléfono vacío y envío el formulario,
-- **entonces** debo ver un mensaje de error: "El teléfono es obligatorio".
+- **entonces** debo ver un mensaje de error: "El teléfono es obligatorio.".
 
 ### CA-001.3 — Validación de contraseña débil
 - **Dado que** estoy completando el formulario de registro,
 - **cuando** ingreso una contraseña que no cumple los requisitos mínimos,
-- **entonces** debo ver un mensaje de error indicando qué requisito falta (≥8 caracteres, mayúscula, minúscula, número).
+- **entonces** debo ver un mensaje de error indicando qué requisito falta (≥8 caracteres, mayúscula, minúscula, número), por ejemplo: "A la contraseña le falta: una mayúscula, un número.".
 
 ### CA-001.4 — Confirmación de contraseña
 - **Dado que** estoy completando el formulario de registro,
@@ -57,7 +59,7 @@
 ### CA-001.6 — Correo o documento duplicados
 - **Dado que** intento registrarme con un correo o documento que ya existen en el sistema,
 - **cuando** envío el formulario,
-- **entonces** debo ver un mensaje de error indicando que ya están registrados.
+- **entonces** debo ver el mensaje: "El email o el documento ya están registrados.".
 
 ### CA-001.7 — Bloqueo de login hasta verificar email
 - **Dado que** me registré pero aún no hice clic en el enlace de verificación,

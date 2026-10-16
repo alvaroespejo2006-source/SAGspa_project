@@ -48,7 +48,13 @@ export const registerSchema = z.object({
     .max(100)
     .regex(NAME_REGEX, 'El apellido solo puede contener letras.'),
   // ¿Qué? El teléfono es obligatorio (RN-003 de RF-001) — canal principal para confirmar citas.
-  phone: z.string().trim().regex(PHONE_REGEX, 'El teléfono debe tener entre 7 y 15 dígitos.'),
+  // ¿Para qué? Distinguir "no lo escribió" de "lo escribió mal" (CA-001.2): si llega vacío
+  //   o no llega, el mensaje dice que es obligatorio en vez de hablar de dígitos.
+  phone: z
+    .string({ required_error: 'El teléfono es obligatorio.' })
+    .trim()
+    .min(1, 'El teléfono es obligatorio.')
+    .regex(PHONE_REGEX, 'El teléfono debe tener entre 7 y 15 dígitos.'),
   email: z.string().email('El email no tiene un formato válido.').toLowerCase().trim(),
   password: z.string().regex(PASSWORD_REGEX, PASSWORD_MESSAGE),
 });
