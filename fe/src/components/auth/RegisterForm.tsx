@@ -16,6 +16,7 @@ import { Button } from '@/components/ui/Button';
 import { InputField } from '@/components/ui/InputField';
 import { Alert } from '@/components/ui/Alert';
 import { LEGAL_VERSION } from '@/config/legal';
+import { getMissingPasswordRequirements } from '@/utils/password';
 
 // ¿Qué? Caracteres NO permitidos en nombre/apellido: todo lo que no sea letra
 //   (de cualquier idioma), espacio, apóstrofo o guion. Se usa para filtrar al teclear.
@@ -140,8 +141,9 @@ export function RegisterForm({ onNavigate, onGoToLogin }: RegisterFormProps) {
     if (!EMAIL_REGEX.test(formData.email.trim())) {
       newErrors.email = 'Ingresa un correo válido, por ejemplo: nombre@dominio.com';
     }
-    if (!/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/.test(formData.password)) {
-      newErrors.password = 'La contraseña debe tener 8+ caracteres, mayúscula, minúscula y número.';
+    const missingRequirements = getMissingPasswordRequirements(formData.password);
+    if (missingRequirements.length > 0) {
+      newErrors.password = `A la contraseña le falta: ${missingRequirements.join(', ')}.`;
     }
     if (formData.password !== formData.confirmPassword) {
       newErrors.confirmPassword = 'Las contraseñas no coinciden.';
