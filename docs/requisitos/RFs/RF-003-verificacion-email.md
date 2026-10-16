@@ -22,11 +22,11 @@ mediante el endpoint `POST /api/v1/auth/verify-email`.
 | 1    | El cliente envía `POST /api/v1/auth/verify-email` con `{ token }`.                              |
 | 2    | El middleware `validate` verifica el body con el schema Zod `verifyEmailSchema`.                |
 | 3    | El servicio busca el token en la tabla `email_verification_tokens`.                              |
-| 4    | Si el token no existe, retorna HTTP 400: "Token de verificación inválido".                      |
-| 5    | Si `expiresAt < NOW()`, retorna HTTP 400: "El enlace de verificación ha expirado".               |
-| 6    | Si `used = true`, retorna HTTP 400: "Este enlace ya fue utilizado".                              |
-| 7    | Se actualiza `users.isEmailVerified = true` para el usuario asociado al token.                  |
-| 8    | Se marca el token como `used = true` en `email_verification_tokens`.                             |
+| 4    | Si el token no existe, retorna HTTP 400 `TOKEN_INVALID`: "Token de verificación inválido."      |
+| 5    | Si `used = true`, retorna HTTP 400 `TOKEN_ALREADY_USED`: "Este enlace ya fue utilizado. Tu cuenta ya está verificada, inicia sesión." (se evalúa antes que la expiración). |
+| 6    | Si `expiresAt <= NOW()`, retorna HTTP 400 `TOKEN_EXPIRED`: "El enlace de verificación ha expirado. Solicita uno nuevo." |
+| 7    | En una sola transacción: `users.isEmailVerified = true` y el token se marca `used = true`.      |
+| 8    | Se registra el evento en el log de auditoría (`logEmailVerified`).                               |
 | 9    | Se retorna HTTP 200 con mensaje de confirmación.                                                 |
 
 ---
@@ -40,6 +40,8 @@ mediante el endpoint `POST /api/v1/auth/verify-email`.
 | RN-042 | El token no debe haber sido usado previamente (`used = false`).                                |
 | RN-043 | Tras la verificación exitosa, `users.isEmailVerified` se establece en `true`.                  |
 | RN-044 | Tras la verificación exitosa, el token se marca como `used = true` — es de un solo uso.        |
+| RN-045 | Si el enlace expiró, el usuario puede pedir uno nuevo con `POST /api/v1/auth/resend-verification`; los enlaces pendientes anteriores quedan invalidados. |
+| RN-046 | El reenvío responde siempre el mismo mensaje (exista o no la cuenta, esté o no verificada) para no revelar qué correos están registrados. |
 
 ---
 
@@ -55,9 +57,30 @@ mediante el endpoint `POST /api/v1/auth/verify-email`.
 { "success": true, "message": "Email verificado correctamente. Ya puedes iniciar sesión." }
 ```
 
-**Output error 400** (token inválido):
+**Output error 400** (un `code` distinto por caso: `TOKEN_INVALID`, `TOKEN_ALREADY_USED`, `TOKEN_EXPIRED`):
 ```json
-{ "error": "Invalid or expired verification token" }
+{
+  "success": false,
+  "error": {
+    "code": "TOKEN_EXPIRED",
+    "message": "El enlace de verificación ha expirado. Solicita uno nuevo."
+  }
+}
+```
+
+### Reenvío del enlace
+
+**Input** (body JSON):
+```json
+{ "email": "string" }
+```
+
+**Output** (HTTP 200, siempre igual):
+```json
+{
+  "success": true,
+  "message": "Si tu cuenta está pendiente de verificación, te enviamos un nuevo enlace a tu correo."
+}
 ```
 
 ---
@@ -67,3 +90,4 @@ mediante el endpoint `POST /api/v1/auth/verify-email`.
 | Método | Ruta                           | Auth requerida | Descripción                         |
 | ------ | ------------------------------ | -------------- | ------------------------------------ |
 | POST   | `/api/v1/auth/verify-email`    | No             | Valida el token y activa la cuenta   |
+| POST   | `/api/v1/auth/resend-verification` | No         | Envía un enlace de verificación nuevo |

@@ -25,6 +25,7 @@
 | GET | `/health` | No | Health check |
 | POST | `/api/v1/auth/register` | No | Registro de nuevo usuario |
 | POST | `/api/v1/auth/verify-email` | No | Verificación de email |
+| POST | `/api/v1/auth/resend-verification` | No | Reenvío del enlace de verificación |
 | POST | `/api/v1/auth/login` | No | Login y emisión de tokens |
 | POST | `/api/v1/auth/refresh` | No† | Renovación de tokens |
 | POST | `/api/v1/auth/change-password` | Sí | Cambio de contraseña |
@@ -123,11 +124,43 @@ Valida el token de verificación de email y activa la cuenta del usuario.
 **Errores:**
 | Código | Descripción |
 |---|---|
-| 400 | Token inválido, expirado o ya utilizado |
+| 400 `TOKEN_INVALID` | El token no existe |
+| 400 `TOKEN_ALREADY_USED` | El enlace ya activó la cuenta (se informa antes que la expiración) |
+| 400 `TOKEN_EXPIRED` | Pasaron más de 24 horas |
 | 422 | Body inválido (token faltante) |
 | 500 | Error interno del servidor |
 
 > ℹ️ El token expira en 24 horas desde el registro. Cada token es de un solo uso.
+
+---
+
+### `POST /api/v1/auth/resend-verification`
+
+Envía un enlace de verificación nuevo si la cuenta existe y aún no está verificada. Los
+enlaces pendientes anteriores quedan invalidados (HU-003).
+
+**No requiere autenticación.**
+
+**Body:**
+```json
+{
+  "email": "ana@ejemplo.com"
+}
+```
+
+**Respuesta 200** (siempre la misma, para no revelar qué correos existen):
+```json
+{
+  "success": true,
+  "message": "Si tu cuenta está pendiente de verificación, te enviamos un nuevo enlace a tu correo."
+}
+```
+
+**Errores:**
+| Código | Descripción |
+|---|---|
+| 422 | Correo con formato inválido |
+| 429 | Superó el rate limit de `/auth` |
 
 ---
 
@@ -429,6 +462,7 @@ En errores de validación (422), se incluyen los detalles:
 | `POST /api/v1/auth/register` | 10 requests | 15 minutos |
 | `POST /api/v1/auth/forgot-password` | 5 requests | 15 minutos |
 | `POST /api/v1/auth/verify-email` | 10 requests | 15 minutos |
+| `POST /api/v1/auth/resend-verification` | 10 requests | 15 minutos |
 | `GET /api/v1/users/me` | Sin límite para usuarios auth | — |
 
 ---
