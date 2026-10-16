@@ -17,6 +17,7 @@ import {
   forgotPasswordSchema,
   resetPasswordSchema,
   verifyEmailSchema,
+  resendVerificationSchema,
 } from './auth.schema.js';
 
 const router: IRouter = Router();
@@ -50,5 +51,13 @@ router.post('/reset-password', validate(resetPasswordSchema), authController.res
 // ¿Qué? Solo requiere el token del enlace — no necesita JWT (el usuario aún no puede loguearse).
 // ¿Para qué? Activar la cuenta para que el usuario pueda iniciar sesión.
 router.post('/verify-email', validate(verifyEmailSchema), authController.verifyEmail);
+
+// ¿Qué? POST /api/v1/auth/resend-verification — reenvía el enlace de verificación (HU-003).
+// ¿Para qué? Recuperar el acceso cuando el enlace de 24 h expiró. Hereda el rate limit de /auth.
+router.post(
+  '/resend-verification',
+  validate(resendVerificationSchema),
+  authController.resendVerification,
+);
 
 export default router;

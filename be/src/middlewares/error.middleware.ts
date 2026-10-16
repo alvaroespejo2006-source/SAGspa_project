@@ -61,8 +61,10 @@ export class ConflictError extends AppError {
 // ¿Qué? 400 Bad Request para errores de lógica de negocio (token inválido, usado, expirado).
 // ¿Para qué? Distinguir errores de dominio (400) de errores de validación de schema (422).
 // ¿Impacto? El cliente sabe que el recurso fue encontrado pero su estado lo hace inutilizable.
+// ¿Qué? `code` es opcional — permite al frontend distinguir casos con el mismo status 400
+//   (ej: TOKEN_EXPIRED vs TOKEN_ALREADY_USED en la verificación de email, HU-003).
 export class BadRequestError extends AppError {
-  constructor(message: string) { super(message, 400, 'BAD_REQUEST'); }
+  constructor(message: string, code = 'BAD_REQUEST') { super(message, 400, code); }
 }
 
 // ¿Qué? 409 Conflict con un código propio: la mascota tiene una condición de piel que exige

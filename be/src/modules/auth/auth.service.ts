@@ -41,6 +41,7 @@ import type {
   ForgotPasswordInput,
   ResetPasswordInput,
   VerifyEmailInput,
+  ResendVerificationInput,
 } from './auth.schema.js';
 
 // ¿Qué? Tipo de respuesta de usuario — nunca expone hashedPassword.
@@ -332,16 +333,29 @@ export async function resetUserPassword(data: ResetPasswordInput): Promise<void>
 // ¿Impacto? Sin esta verificación, el login queda bloqueado con 403 indefinidamente.
 //   El token es de un solo uso — una vez consumido, no puede reutilizarse.
 export async function verifyEmail(data: VerifyEmailInput): Promise<void> {
+  // ¿Qué? Se busca el token solo por su valor y luego se evalúa cada caso por separado.
+  // ¿Para qué? CA-003.2 y CA-003.3 piden mensajes distintos para "expirado" y "ya usado"
+  //   (RN-040 a RN-042); con un solo findFirst filtrado ambos casos se veían iguales.
+  // ¿Impacto? Se revisa `used` antes que `expiresAt`: si el enlace ya activó la cuenta,
+  //   decir "ya fue utilizado" es más útil que "expiró", aunque ambas cosas sean ciertas.
   const tokenRecord = await db.emailVerificationToken.findFirst({
-    where: {
-      token: data.token,
-      used: false,
-      expiresAt: { gt: new Date() },
-    },
+    where: { token: data.token },
   });
 
   if (!tokenRecord) {
-    throw new BadRequestError('El token de verificación es inválido o ha expirado.');
+    throw new BadRequestError('Token de verificación inválido.', 'TOKEN_INVALID');
+  }
+  if (tokenRecord.used) {
+    throw new BadRequestError(
+      'Este enlace ya fue utilizado. Tu cuenta ya está verificada, inicia sesión.',
+      'TOKEN_ALREADY_USED',
+    );
+  }
+  if (tokenRecord.expiresAt <= new Date()) {
+    throw new BadRequestError(
+      'El enlace de verificación ha expirado. Solicita uno nuevo.',
+      'TOKEN_EXPIRED',
+    );
   }
 
   // ¿Qué? Actualiza isEmailVerified=true y marca el token como usado, en una transacción real.
@@ -358,4 +372,24 @@ export async function verifyEmail(data: VerifyEmailInput): Promise<void> {
   ]);
 
   logEmailVerified(tokenRecord.userId);
+}
+
+// ¿Qué? Genera y envía un enlace de verificación nuevo para una cuenta aún sin verificar.
+// ¿Para qué? Sin esto, si el enlace de 24 h expiraba (CA-003.2) el usuario no tenía
+//   forma de activar su cuenta: no podía iniciar sesión ni volver a registrarse.
+// ¿Impacto? Siempre termina sin error aunque el correo no exista o ya esté verificado —
+//   el controller responde lo mismo en todos los casos para no revelar qué cuentas
+//   existen (mismo criterio que forgot-password, OWASP A07).
+export async function resendVerificationEmail(data: ResendVerificationInput): Promise<void> {
+  const user = await db.user.findUnique({ where: { email: data.email } });
+  if (!user || user.isEmailVerified) return;
+
+  // ¿Qué? Invalida los enlaces anteriores que sigan pendientes.
+  // ¿Para qué? Que solo el último correo recibido sirva para activar la cuenta.
+  await db.emailVerificationToken.updateMany({
+    where: { userId: user.id, used: false },
+    data: { used: true },
+  });
+
+  await issueEmailVerification(user);
 }
