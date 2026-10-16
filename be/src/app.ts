@@ -62,10 +62,14 @@ const authRateLimit = rateLimit({
   skip: () => process.env.NODE_ENV === 'test',
   standardHeaders: true,
   legacyHeaders: false,
+  // ¿Qué? Mismo formato { success, error } que el errorHandler, y mensaje en español.
+  // ¿Para qué? El frontend (toApiError) lee error.message y lo muestra tal cual al usuario
+  //   en el login (RN-027 de RF-002).
   message: {
+    success: false,
     error: {
       code: 'RATE_LIMIT_EXCEEDED',
-      message: 'Too many requests, please try again in 15 minutes',
+      message: 'Demasiados intentos. Intenta de nuevo en 15 minutos.',
     },
   },
 });
