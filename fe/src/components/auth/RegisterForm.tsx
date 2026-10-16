@@ -131,7 +131,10 @@ export function RegisterForm({ onNavigate, onGoToLogin }: RegisterFormProps) {
     } else if (!NAME_REGEX.test(formData.lastName.trim())) {
       newErrors.lastName = 'El apellido solo puede contener letras.';
     }
-    if (!PHONE_REGEX.test(formData.phone.trim())) {
+    // ¿Qué? Vacío → "obligatorio" (CA-001.2); con datos pero mal formado → regla de dígitos.
+    if (!formData.phone.trim()) {
+      newErrors.phone = 'El teléfono es obligatorio.';
+    } else if (!PHONE_REGEX.test(formData.phone.trim())) {
       newErrors.phone = 'El teléfono debe tener entre 7 y 15 dígitos.';
     }
     if (!EMAIL_REGEX.test(formData.email.trim())) {
