@@ -84,6 +84,7 @@ CREATE INDEX idx_users_email ON users(email);
 | `is_active` | BOOLEAN | DEFAULT TRUE | Permite desactivar cuentas sin eliminarlas |
 | `created_at` | TIMESTAMP | DEFAULT NOW() | Fecha de registro |
 | `updated_at` | TIMESTAMP | DEFAULT NOW() | Fecha de última modificación |
+| `password_changed_at` | TIMESTAMP | NULL | Último cambio/restablecimiento de contraseña — `/auth/refresh` rechaza refresh tokens emitidos antes (HU-004) |
 
 ### Notas de seguridad
 

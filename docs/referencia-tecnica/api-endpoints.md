@@ -227,20 +227,21 @@ Cambia la contraseña del usuario autenticado, verificando primero la contraseñ
 - `newPassword`: mínimo 8 caracteres, al menos 1 mayúscula, 1 minúscula, 1 número
 - `newPassword` no puede ser igual a `currentPassword`
 
-**Respuesta 200:**
+**Respuesta 200** (incluye tokens nuevos — los refresh tokens anteriores dejan de servir):
 ```json
 {
   "success": true,
-  "message": "Contraseña cambiada correctamente."
+  "message": "Contraseña actualizada correctamente.",
+  "data": { "accessToken": "eyJ...", "refreshToken": "eyJ...", "tokenType": "bearer" }
 }
 ```
 
 **Errores:**
 | Código | Descripción |
 |---|---|
-| 400 | Nueva contraseña igual a la actual |
-| 401 | No autenticado o contraseña actual incorrecta |
-| 422 | Datos de entrada inválidos |
+| 400 `INVALID_CURRENT_PASSWORD` | Contraseña actual incorrecta |
+| 401 | No autenticado (token ausente, inválido o expirado) |
+| 422 | Nueva contraseña débil o igual a la actual |
 | 500 | Error interno del servidor |
 
 ---
