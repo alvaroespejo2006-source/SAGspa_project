@@ -251,8 +251,14 @@ export async function changeUserPassword(
 
   if (!user) throw new NotFoundError('Usuario no encontrado.');
 
+  // ¿Qué? 400 (no 401) con un código propio.
+  // ¿Para qué? El interceptor de Axios interpreta todo 401 como "sesión expirada": renovaba
+  //   los tokens, reintentaba el cambio y, si el refresh fallaba, sacaba al usuario al login
+  //   solo por equivocarse de contraseña. 401 queda reservado para problemas del token.
   const valid = await verifyPassword(data.currentPassword, user.hashedPassword);
-  if (!valid) throw new UnauthorizedError('La contraseña actual es incorrecta.');
+  if (!valid) {
+    throw new BadRequestError('La contraseña actual es incorrecta.', 'INVALID_CURRENT_PASSWORD');
+  }
 
   const hashed = await hashPassword(data.newPassword);
 
