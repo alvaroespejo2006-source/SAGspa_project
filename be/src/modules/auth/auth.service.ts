@@ -216,7 +216,7 @@ export async function loginUser(data: LoginInput, ip?: string): Promise<LoginRes
 // ¿Para qué? Permitir sesiones largas sin requerir re-login cada 15 minutos.
 // ¿Impacto? Un refresh token inválido o expirado debe retornar 401 claramente.
 export async function refreshTokens(data: RefreshTokenInput): Promise<TokenResponse> {
-  let payload: { sub: string; email: string };
+  let payload: { sub: string; email: string; iat: number };
   try {
     payload = verifyRefreshToken(data.refreshToken);
   } catch {
@@ -229,6 +229,15 @@ export async function refreshTokens(data: RefreshTokenInput): Promise<TokenRespo
 
   if (!user) {
     throw new UnauthorizedError('Usuario no encontrado.');
+  }
+
+  // ¿Qué? Rechaza refresh tokens emitidos antes del último cambio de contraseña (HU-004).
+  // ¿Para qué? Si alguien robó una sesión, cambiar la contraseña la corta en cuanto su
+  //   access token (15 min) expire, en vez de dejarla viva hasta 7 días.
+  // ¿Impacto? `iat` está en segundos: se compara contra el segundo del cambio, así los tokens
+  //   que se emiten justo después del cambio (mismo segundo) siguen siendo válidos.
+  if (user.passwordChangedAt && payload.iat < Math.floor(user.passwordChangedAt.getTime() / 1000)) {
+    throw new UnauthorizedError('Tu contraseña cambió. Inicia sesión de nuevo.');
   }
 
   return {
@@ -244,7 +253,7 @@ export async function refreshTokens(data: RefreshTokenInput): Promise<TokenRespo
 export async function changeUserPassword(
   userId: string,
   data: ChangePasswordInput,
-): Promise<void> {
+): Promise<TokenResponse> {
   const user = await db.user.findUnique({
     where: { id: userId },
   });
@@ -261,13 +270,23 @@ export async function changeUserPassword(
   }
 
   const hashed = await hashPassword(data.newPassword);
+  const now = new Date();
 
+  // ¿Qué? passwordChangedAt invalida los refresh tokens anteriores (ver refreshTokens).
   await db.user.update({
     where: { id: userId },
-    data: { hashedPassword: hashed, updatedAt: new Date() },
+    data: { hashedPassword: hashed, updatedAt: now, passwordChangedAt: now },
   });
 
   logPasswordChanged(userId);
+
+  // ¿Qué? Tokens nuevos para la sesión actual.
+  // ¿Para qué? Quien cambió la contraseña sigue conectado; las demás sesiones se cierran.
+  return {
+    accessToken: generateAccessToken(user.id, user.email, user.role),
+    refreshToken: generateRefreshToken(user.id, user.email, user.role),
+    tokenType: 'bearer',
+  };
 }
 
 // ¿Qué? Genera un token de recuperación y envía el email al usuario.
@@ -323,7 +342,8 @@ export async function resetUserPassword(data: ResetPasswordInput): Promise<void>
   await db.$transaction([
     db.user.update({
       where: { id: tokenRecord.userId },
-      data: { hashedPassword: hashed, updatedAt: new Date() },
+      // ¿Qué? passwordChangedAt también aquí: restablecer la contraseña cierra las sesiones abiertas.
+      data: { hashedPassword: hashed, updatedAt: new Date(), passwordChangedAt: new Date() },
     }),
     db.passwordResetToken.update({
       where: { id: tokenRecord.id },

@@ -64,8 +64,13 @@ export async function changePassword(
   next: NextFunction,
 ): Promise<void> {
   try {
-    await authService.changeUserPassword(req.user!.id, req.body as ChangePasswordInput);
-    res.status(200).json({ success: true, message: 'Contraseña actualizada correctamente.' });
+    // ¿Qué? Devuelve tokens nuevos: los refresh tokens anteriores dejan de servir (HU-004).
+    const tokens = await authService.changeUserPassword(req.user!.id, req.body as ChangePasswordInput);
+    res.status(200).json({
+      success: true,
+      message: 'Contraseña actualizada correctamente.',
+      data: tokens,
+    });
   } catch (err) {
     next(err);
   }
