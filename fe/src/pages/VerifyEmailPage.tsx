@@ -3,7 +3,7 @@
  * Descripción: Procesa el token del enlace de activación de cuenta (RF-003, HU-003).
  */
 
-import { useEffect, useState } from 'react';
+import { useEffect, useRef, useState } from 'react';
 import { useSearchParams, Link } from 'react-router-dom';
 import * as authApi from '@/api/auth';
 import { Button } from '@/components/ui/Button';
@@ -18,8 +18,15 @@ export function VerifyEmailPage() {
   const [state, setState] = useState<VerifyState>(token ? 'processing' : 'missingToken');
   const [errorMessage, setErrorMessage] = useState<string | null>(null);
 
+  // ¿Qué? Marca si ya se envió la verificación.
+  // ¿Para qué? En desarrollo, StrictMode ejecuta el efecto dos veces: la segunda llamada
+  //   encontraba el token ya usado y la pantalla podía terminar en "No pudimos verificar
+  //   tu cuenta" aunque la cuenta sí quedó activada.
+  const requestedRef = useRef(false);
+
   useEffect(() => {
-    if (!token) return;
+    if (!token || requestedRef.current) return;
+    requestedRef.current = true;
 
     const verify = async () => {
       try {
