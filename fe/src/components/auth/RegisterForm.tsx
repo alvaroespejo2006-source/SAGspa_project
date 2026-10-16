@@ -354,7 +354,10 @@ export function RegisterForm({ onNavigate, onGoToLogin }: RegisterFormProps) {
       </div>
 
       <div className="flex justify-end pt-2">
-        <Button type="submit" isLoading={isLoading} disabled={!acceptedLegal}>
+        {/* ¿Qué? Se combina isLoading en disabled: si solo se pasa !acceptedLegal, ese valor
+            reemplaza el disabled automático del Button y el formulario se podía enviar dos
+            veces mientras la petición estaba en curso (CA-001.9). */}
+        <Button type="submit" isLoading={isLoading} disabled={!acceptedLegal || isLoading}>
           Crear cuenta
         </Button>
       </div>
