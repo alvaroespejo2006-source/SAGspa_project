@@ -83,7 +83,9 @@ export type CreateStaffInput = z.infer<typeof createStaffSchema>;
 // ¿Impacto? La contraseña solo valida que no esté vacía — la verificación del hash
 //   la realiza el service, no el schema (evitar revelar reglas de contraseña en login).
 export const loginSchema = z.object({
-  email: z.string().email('El email no tiene un formato válido.').toLowerCase().trim(),
+  // ¿Qué? trim/toLowerCase ANTES de .email(): zod aplica las reglas en orden, y con
+  //   .email() primero un correo pegado con espacios ("  ana@x.com ") fallaba con 422.
+  email: z.string().trim().toLowerCase().email('El email no tiene un formato válido.'),
   password: z.string().min(1, 'La contraseña es requerida.'),
 });
 
