@@ -110,7 +110,7 @@ export const changePasswordSchema = z
     newPassword: z.string().regex(PASSWORD_REGEX, PASSWORD_MESSAGE),
   })
   .refine((data) => data.currentPassword !== data.newPassword, {
-    message: 'La nueva contraseña no puede ser igual a la actual.',
+    message: 'La nueva contraseña debe ser diferente a la actual.',
     path: ['newPassword'],
   });
 
