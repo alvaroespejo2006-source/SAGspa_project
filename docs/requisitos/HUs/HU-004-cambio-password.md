@@ -14,8 +14,10 @@
 | **Título**       | Cambio de contraseña         |
 | **Módulo**       | Autenticación                 |
 | **Prioridad**    | Media                          |
-| **Estado**       | Por implementar                |
+| **Estado**       | Implementada                |
 | **RF asociados** | RF-004                          |
+| **Responsable**  | Duvan Doncel                |
+| **Rama**         | `feature/HU-004-cambio-password` |
 
 ---
 
@@ -32,17 +34,27 @@
 ### CA-004.1 — Contraseña actual incorrecta
 - **Dado que** ingreso mal mi contraseña actual,
 - **cuando** envío el formulario,
-- **entonces** debo ver el mensaje: "La contraseña actual es incorrecta".
+- **entonces** debo ver el mensaje: "La contraseña actual es incorrecta." y sigo con mi sesión abierta.
 
 ### CA-004.2 — Nueva contraseña igual a la actual
 - **Dado que** ingreso la misma contraseña actual como nueva contraseña,
 - **cuando** envío el formulario,
-- **entonces** debo ver el mensaje: "La nueva contraseña debe ser diferente a la actual".
+- **entonces** debo ver el mensaje: "La nueva contraseña debe ser diferente a la actual.".
 
 ### CA-004.3 — Cambio exitoso
 - **Dado que** ingreso correctamente mi contraseña actual y una nueva válida,
 - **cuando** envío el formulario,
-- **entonces** mi contraseña queda actualizada y veo un mensaje de confirmación.
+- **entonces** mi contraseña queda actualizada, veo un mensaje de confirmación y sigo conectado en este dispositivo.
+
+### CA-004.4 — Nueva contraseña débil
+- **Dado que** la nueva contraseña no cumple los requisitos (≥8 caracteres, mayúscula, minúscula, número),
+- **cuando** envío el formulario,
+- **entonces** veo el requisito que falta.
+
+### CA-004.5 — Cierre de las demás sesiones
+- **Dado que** tengo sesiones abiertas en otros dispositivos,
+- **cuando** cambio mi contraseña,
+- **entonces** esas sesiones dejan de poder renovarse y deben iniciar sesión de nuevo (a más tardar en 15 minutos).
 
 ---
 
@@ -57,3 +69,5 @@
 ## Notas técnicas
 
 - Requiere `accessToken` válido en el header `Authorization`.
+- La contraseña actual incorrecta responde **400** `INVALID_CURRENT_PASSWORD` (no 401) para que el frontend no lo confunda con una sesión expirada.
+- La respuesta trae tokens nuevos; el frontend los guarda. Los refresh tokens anteriores quedan inválidos (columna `users.password_changed_at`).

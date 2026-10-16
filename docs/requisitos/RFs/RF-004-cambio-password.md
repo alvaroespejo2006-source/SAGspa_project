@@ -22,13 +22,13 @@ verificando primero la contraseña actual, mediante el endpoint `POST /api/v1/au
 | ---- | ------------------------------------------------------------------------------------------ |
 | 1    | El cliente envía `POST /api/v1/auth/change-password` con `{ currentPassword, newPassword }` y el header `Authorization: Bearer <accessToken>`. |
 | 2    | El middleware `authenticate` verifica y decodifica el JWT.                               |
-| 3    | El middleware `validate` verifica el body con `changePasswordSchema`.                    |
-| 4    | El servicio busca al usuario por `req.userId` en la BD.                                  |
-| 5    | Se verifica `currentPassword` con bcrypt contra `hashedPassword`. Si no coincide, retorna HTTP 401. |
-| 6    | Si `newPassword === currentPassword`, retorna HTTP 400.                                  |
-| 7    | Se genera el hash bcrypt de `newPassword` (salt rounds = 12).                             |
-| 8    | Se actualiza `hashedPassword` en la tabla `users`.                                        |
-| 9    | Se retorna HTTP 200 con mensaje de confirmación.                                          |
+| 3    | El middleware `validate` verifica el body con `changePasswordSchema` (fortaleza y `newPassword !== currentPassword`). Si falla, retorna HTTP 422. |
+| 4    | El servicio busca al usuario por el `id` del JWT en la BD.                               |
+| 5    | Se verifica `currentPassword` con bcrypt contra `hashedPassword`. Si no coincide, retorna HTTP 400 `INVALID_CURRENT_PASSWORD`. |
+| 6    | Se genera el hash bcrypt de `newPassword` (salt rounds = 12).                             |
+| 7    | Se actualizan `hashedPassword` y `passwordChangedAt` en la tabla `users`.                 |
+| 8    | Se generan un `accessToken` y un `refreshToken` nuevos para la sesión actual.             |
+| 9    | Se retorna HTTP 200 con mensaje de confirmación y los tokens nuevos.                       |
 
 ---
 
@@ -40,6 +40,9 @@ verificando primero la contraseña actual, mediante el endpoint `POST /api/v1/au
 | RN-031 | La contraseña actual (`currentPassword`) debe coincidir con el hash almacenado en la BD.         |
 | RN-032 | La nueva contraseña debe cumplir los mismos requisitos de fortaleza que en el registro.           |
 | RN-033 | La nueva contraseña no puede ser igual a la contraseña actual.                                    |
+| RN-034 | La nueva contraseña se guarda como hash bcrypt (salt rounds = 12).                                |
+| RN-035 | Al cambiar (o restablecer) la contraseña, los refresh tokens emitidos antes dejan de servir: `/auth/refresh` responde 401 "Tu contraseña cambió. Inicia sesión de nuevo.". Los access tokens ya emitidos siguen valiendo hasta que expiran (máx. 15 min). |
+| RN-036 | Una contraseña actual incorrecta responde **400**, no 401: el 401 hace que el frontend intente renovar la sesión, y aquí la sesión es válida. |
 
 ---
 
@@ -52,18 +55,33 @@ verificando primero la contraseña actual, mediante el endpoint `POST /api/v1/au
 
 **Output éxito** (HTTP 200):
 ```json
-{ "success": true, "message": "Contraseña cambiada correctamente." }
+{
+  "success": true,
+  "message": "Contraseña actualizada correctamente.",
+  "data": { "accessToken": "eyJ...", "refreshToken": "eyJ...", "tokenType": "bearer" }
+}
 ```
 
-**Output error 401** (contraseña actual incorrecta):
+**Output error 400** (contraseña actual incorrecta):
 ```json
-{ "error": "Current password is incorrect" }
+{
+  "success": false,
+  "error": { "code": "INVALID_CURRENT_PASSWORD", "message": "La contraseña actual es incorrecta." }
+}
 ```
 
-**Output error 400** (nueva = actual):
+**Output error 422** (nueva = actual, o nueva débil):
 ```json
-{ "error": "New password must be different from current password" }
+{
+  "success": false,
+  "error": {
+    "code": "VALIDATION_ERROR",
+    "message": "[{\"field\":\"newPassword\",\"message\":\"La nueva contraseña debe ser diferente a la actual.\"}]"
+  }
+}
 ```
+
+**Output error 401**: falta el header `Authorization` o el token es inválido / expiró.
 
 ---
 

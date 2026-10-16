@@ -8,6 +8,7 @@
 import { apiClient } from './axios';
 import type {
   ApiResponse,
+  AuthTokens,
   ChangePasswordRequest,
   CreateStaffRequest,
   ForgotPasswordRequest,
@@ -36,8 +37,13 @@ export async function refreshToken(data: RefreshTokenRequest): Promise<LoginResp
   return res.data.data;
 }
 
+// ¿Qué? Cambia la contraseña y guarda los tokens nuevos que devuelve el backend (HU-004).
+// ¿Para qué? Al cambiar la contraseña el backend invalida los refresh tokens anteriores;
+//   sin guardar los nuevos, esta misma sesión se cerraría al expirar el access token.
 export async function changePassword(data: ChangePasswordRequest): Promise<void> {
-  await apiClient.post('/auth/change-password', data);
+  const res = await apiClient.post<ApiResponse<AuthTokens>>('/auth/change-password', data);
+  localStorage.setItem('accessToken', res.data.data.accessToken);
+  localStorage.setItem('refreshToken', res.data.data.refreshToken);
 }
 
 export async function forgotPassword(data: ForgotPasswordRequest): Promise<void> {

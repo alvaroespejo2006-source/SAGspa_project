@@ -61,17 +61,22 @@ export function generateRefreshToken(userId: string, email: string, role: UserRo
 
 // ¿Qué? Verifica y decodifica un refresh token.
 // ¿Para qué? Validar el token en el endpoint POST /api/v1/auth/refresh.
-export function verifyRefreshToken(token: string): { sub: string; email: string; role: UserRole } {
+// ¿Impacto? Retorna `iat` (segundos) para saber si el token es anterior a un cambio de
+//   contraseña (HU-004).
+export function verifyRefreshToken(
+  token: string,
+): { sub: string; email: string; role: UserRole; iat: number } {
   const payload = jwt.verify(token, config.JWT_REFRESH_SECRET) as {
     sub: string;
     email: string;
     role: UserRole;
     type: string;
+    iat: number;
   };
 
   if (payload.type !== 'refresh') {
     throw new Error('Invalid token type');
   }
 
-  return { sub: payload.sub, email: payload.email, role: payload.role };
+  return { sub: payload.sub, email: payload.email, role: payload.role, iat: payload.iat };
 }
