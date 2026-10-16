@@ -82,6 +82,11 @@ export interface VerifyEmailRequest {
   token: string;
 }
 
+// ¿Qué? Request body para pedir un nuevo enlace de verificación (HU-003).
+export interface ResendVerificationRequest {
+  email: string;
+}
+
 // ¿Qué? Request body para que un staff cree a otro staff (RF-008).
 export interface CreateStaffRequest {
   firstName: string;

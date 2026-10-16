@@ -15,6 +15,7 @@ import type {
   LoginResponse,
   RefreshTokenRequest,
   RegisterRequest,
+  ResendVerificationRequest,
   ResetPasswordRequest,
   User,
   VerifyEmailRequest,
@@ -56,6 +57,11 @@ export async function getMe(): Promise<User> {
 
 export async function verifyEmail(data: VerifyEmailRequest): Promise<void> {
   await apiClient.post('/auth/verify-email', data);
+}
+
+// ¿Qué? Pide un nuevo enlace de verificación cuando el anterior expiró (HU-003).
+export async function resendVerification(data: ResendVerificationRequest): Promise<void> {
+  await apiClient.post('/auth/resend-verification', data);
 }
 
 // ¿Qué? Crea una nueva cuenta de staff (RF-008) — solo la puede llamar otro staff autenticado.
