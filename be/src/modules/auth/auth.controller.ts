@@ -15,6 +15,7 @@ import type {
   ChangePasswordInput,
   ForgotPasswordInput,
   ResetPasswordInput,
+  ValidateResetTokenInput,
   VerifyEmailInput,
   ResendVerificationInput,
 } from './auth.schema.js';
@@ -105,6 +106,21 @@ export async function resetPassword(
   try {
     await authService.resetUserPassword(req.body as ResetPasswordInput);
     res.status(200).json({ success: true, message: 'Contraseña restablecida correctamente.' });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// ¿Qué? Indica si el enlace de recuperación sigue vigente (HU-005, CA-005.2).
+// ¿Para qué? Que la página avise "el enlace expiró" apenas se abre.
+export async function validateResetToken(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    await authService.validateResetToken(req.body as ValidateResetTokenInput);
+    res.status(200).json({ success: true, message: 'El enlace de recuperación es válido.' });
   } catch (err) {
     next(err);
   }

@@ -149,6 +149,15 @@ export const resetPasswordSchema = z.object({
 
 export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
 
+// --- Schema de validación del enlace de recuperación (HU-005) ---
+// ¿Qué? Solo el token: la página /reset-password pregunta si el enlace sigue vigente
+//   antes de mostrar el formulario (CA-005.2).
+export const validateResetTokenSchema = z.object({
+  token: z.string().min(1, 'El token es requerido.'),
+});
+
+export type ValidateResetTokenInput = z.infer<typeof validateResetTokenSchema>;
+
 // --- Schema de verificación de email ---
 // ¿Qué? Valida que el body contenga el token de activación enviado por email al registrarse.
 // ¿Para qué? Asegurar que el campo token esté presente y no vacío antes de buscarlo en la BD.
