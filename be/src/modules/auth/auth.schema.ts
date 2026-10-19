@@ -130,7 +130,9 @@ export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;
 // ¿Impacto? El service siempre responde 200 independientemente de si el email existe —
 //   este schema solo verifica el formato, no la existencia del usuario.
 export const forgotPasswordSchema = z.object({
-  email: z.string().email('El email no tiene un formato válido.').toLowerCase().trim(),
+  // ¿Qué? trim/toLowerCase ANTES de .email(), igual que en el login (HU-002): con .email()
+  //   primero, un correo pegado con espacios respondía 422 en vez del mensaje genérico.
+  email: z.string().trim().toLowerCase().email('El email no tiene un formato válido.'),
 });
 
 export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;

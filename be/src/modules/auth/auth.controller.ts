@@ -88,7 +88,8 @@ export async function forgotPassword(
     await authService.requestPasswordReset(req.body as ForgotPasswordInput);
     res.status(200).json({
       success: true,
-      message: 'Si el email existe recibirás un enlace de recuperación en breve.',
+      // ¿Qué? Mismo texto que CA-005.1 — se muestra exista o no el correo (RN-050).
+      message: 'Si el correo está registrado, recibirás un enlace de recuperación.',
     });
   } catch (err) {
     next(err);
