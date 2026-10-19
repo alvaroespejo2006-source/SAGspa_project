@@ -19,6 +19,7 @@ import type {
   ResendVerificationRequest,
   ResetPasswordRequest,
   User,
+  ValidateResetTokenRequest,
   VerifyEmailRequest,
 } from '@/types/auth';
 
@@ -52,6 +53,12 @@ export async function forgotPassword(data: ForgotPasswordRequest): Promise<void>
 
 export async function resetPassword(data: ResetPasswordRequest): Promise<void> {
   await apiClient.post('/auth/reset-password', data);
+}
+
+// ¿Qué? Pregunta si el enlace de recuperación sigue vigente, sin cambiar nada (HU-005).
+// ¿Para qué? Avisar "el enlace expiró" apenas se abre la página (CA-005.2).
+export async function validateResetToken(data: ValidateResetTokenRequest): Promise<void> {
+  await apiClient.post('/auth/reset-password/validate', data);
 }
 
 // ¿Qué? Obtener el perfil del usuario actualmente autenticado.
