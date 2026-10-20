@@ -122,12 +122,17 @@ export async function listMyOrders(clientId: string): Promise<OrderResponse[]> {
   }));
 }
 
-// ¿Qué? Lista los pedidos pendientes, para la bandeja del staff (RF-019).
-export async function listPendingOrders(): Promise<StaffOrderResponse[]> {
+// ¿Qué? Lista los pedidos de un estado, para la bandeja del staff (RF-019, HU-019).
+// ¿Para qué? La HU pide listar "por estado": además de los pendientes, el staff consulta los
+//   completados y cancelados. Pendientes del más antiguo al más nuevo (se atiende primero el
+//   que lleva más tiempo esperando); los cerrados del más reciente al más antiguo.
+export async function listOrdersByStatus(
+  status: 'pending' | 'completed' | 'cancelled' = 'pending',
+): Promise<StaffOrderResponse[]> {
   const orders = await db.order.findMany({
-    where: { status: 'pending' },
+    where: { status },
     include: { items: { include: { product: true } }, client: true },
-    orderBy: { createdAt: 'asc' },
+    orderBy: { createdAt: status === 'pending' ? 'asc' : 'desc' },
   });
 
   return orders.map((o) => ({
@@ -154,11 +159,27 @@ export async function updateOrderStatus(
   data: UpdateOrderStatusInput,
 ): Promise<{ id: string; status: string; paymentStatus: string }> {
   return db.$transaction(async (tx) => {
+    // ¿Qué? Cierra el pedido con un UPDATE CONDICIONAL (solo si sigue pendiente) ANTES de tocar
+    //   el stock (HU-019, CA-019.3).
+    // ¿Para qué? Antes se leía el estado y luego se cerraba: si dos personas del staff cancelaban
+    //   el mismo pedido a la vez, las dos pasaban la revisión y el stock se devolvía DOS veces.
+    const closed = await tx.order.updateMany({
+      where: { id, status: 'pending' },
+      data: {
+        status: data.status,
+        ...(data.status === 'completed' ? { paymentStatus: 'paid' as const } : {}),
+      },
+    });
+
     const order = await tx.order.findUnique({ where: { id }, include: { items: true } });
     if (!order) throw new NotFoundError('Pedido no encontrado.');
 
-    if (order.status !== 'pending') {
-      throw new BadRequestError(`El pedido ya está en estado final (${order.status}) y no puede modificarse.`);
+    if (closed.count === 0) {
+      const label = order.status === 'completed' ? 'completado' : 'cancelado';
+      throw new BadRequestError(
+        `Este pedido ya está ${label} y no se puede modificar.`,
+        'ORDER_FINAL_STATE',
+      );
     }
 
     if (data.status === 'cancelled') {
@@ -170,14 +191,6 @@ export async function updateOrderStatus(
       }
     }
 
-    const updated = await tx.order.update({
-      where: { id },
-      data: {
-        status: data.status,
-        paymentStatus: data.status === 'completed' ? 'paid' : order.paymentStatus,
-      },
-    });
-
-    return { id: updated.id, status: updated.status, paymentStatus: updated.paymentStatus };
+    return { id: order.id, status: order.status, paymentStatus: order.paymentStatus };
   });
 }
