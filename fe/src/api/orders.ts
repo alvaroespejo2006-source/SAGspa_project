@@ -5,7 +5,13 @@
 
 import { apiClient } from './axios';
 import type { ApiResponse } from '@/types/auth';
-import type { CreateOrderRequest, Order, OrderStatus, OrderStatusUpdateResult, StaffOrder } from '@/types/orders';
+import type {
+  CreateOrderRequest,
+  Order,
+  OrderStatus,
+  OrderStatusUpdateResult,
+  StaffOrder,
+} from '@/types/orders';
 
 export async function createOrder(data: CreateOrderRequest): Promise<Order> {
   const res = await apiClient.post<ApiResponse<Order>>('/orders', data);
@@ -18,8 +24,11 @@ export async function listMyOrders(): Promise<Order[]> {
 }
 
 // ¿Qué? Bandeja de pedidos pendientes para el staff (RF-019).
-export async function listPendingOrders(): Promise<StaffOrder[]> {
-  const res = await apiClient.get<ApiResponse<StaffOrder[]>>('/staff/orders');
+// ¿Qué? Pedidos de un estado para el staff (HU-019) — por defecto, los pendientes.
+export async function listOrdersByStatus(status: OrderStatus = 'pending'): Promise<StaffOrder[]> {
+  const res = await apiClient.get<ApiResponse<StaffOrder[]>>('/staff/orders', {
+    params: { status },
+  });
   return res.data.data;
 }
 
@@ -27,6 +36,8 @@ export async function updateOrderStatus(
   id: string,
   status: Extract<OrderStatus, 'completed' | 'cancelled'>,
 ): Promise<OrderStatusUpdateResult> {
-  const res = await apiClient.put<ApiResponse<OrderStatusUpdateResult>>(`/staff/orders/${id}`, { status });
+  const res = await apiClient.put<ApiResponse<OrderStatusUpdateResult>>(`/staff/orders/${id}`, {
+    status,
+  });
   return res.data.data;
 }
