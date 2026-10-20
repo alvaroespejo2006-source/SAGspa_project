@@ -10,6 +10,7 @@
 import { useState, useEffect, useCallback } from 'react';
 import type { ReactNode } from 'react';
 import * as authApi from '@/api/auth';
+import { ApiError } from '@/api/axios';
 import type { User, LoginRequest, RegisterRequest } from '@/types/auth';
 import { AuthContext } from './auth-context';
 
@@ -36,9 +37,15 @@ export function AuthProvider({ children }: AuthProviderProps) {
     authApi
       .getMe()
       .then(setUser)
-      .catch(() => {
-        localStorage.removeItem('accessToken');
-        localStorage.removeItem('refreshToken');
+      .catch((err: unknown) => {
+        // ¿Qué? Solo se borran los tokens si el backend los rechazó (HU-007, CA-007.2).
+        // ¿Para qué? Con el servidor caído o sin internet, borrarlos obligaba a iniciar
+        //   sesión otra vez aunque la sesión seguía siendo válida. Sin `user`, las rutas
+        //   protegidas igual llevan al login; al recargar con conexión, la sesión vuelve.
+        if (err instanceof ApiError && (err.status === 401 || err.status === 403)) {
+          localStorage.removeItem('accessToken');
+          localStorage.removeItem('refreshToken');
+        }
       })
       .finally(() => setIsLoading(false));
   }, []);

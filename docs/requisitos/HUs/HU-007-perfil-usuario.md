@@ -14,8 +14,10 @@
 | **Título**       | Perfil de usuario       |
 | **Módulo**       | Autenticación             |
 | **Prioridad**    | Media                       |
-| **Estado**       | Por implementar              |
+| **Estado**       | Implementada                 |
 | **RF asociados** | RF-007                        |
+| **Responsable**  | Juan Rodriguez                |
+| **Rama**         | `feature/HU-007-perfil-usuario` |
 
 ---
 
@@ -32,12 +34,15 @@
 ### CA-007.1 — Datos visibles tras iniciar sesión
 - **Dado que** inicié sesión correctamente,
 - **cuando** la app carga,
-- **entonces** veo mi nombre en la cabecera de la pantalla.
+- **entonces** veo mi nombre en la cabecera de la pantalla, también en el celular.
+- En pantallas desde 640 px también veo mi rol (Cliente / Staff) y mi correo.
 
 ### CA-007.2 — Token inválido
 - **Dado que** mi token no es válido (manipulado o corrupto),
 - **cuando** la app intenta cargar mi perfil,
-- **entonces** soy redirigido al login.
+- **entonces** soy redirigido al login y la sesión guardada se borra.
+- Lo mismo pasa si la cuenta del token fue eliminada (el backend responde 401, no 404).
+- Si el servidor no responde (sin conexión), la sesión guardada **no** se borra.
 
 ---
 
@@ -52,3 +57,4 @@
 ## Notas técnicas
 
 - Requiere `accessToken` válido en el header `Authorization`.
+- El backend solo acepta tokens firmados con HS256; los mensajes de 401 están en español.

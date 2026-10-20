@@ -33,7 +33,7 @@
 | POST | `/api/v1/auth/reset-password/validate` | No | ¿El enlace de recuperación sigue vigente? |
 | POST | `/api/v1/auth/reset-password` | No | Restablecer contraseña |
 | GET | `/api/v1/users/me` | Sí | Perfil del usuario |
-| PATCH | `/api/v1/users/me/locale` | Sí | Actualizar idioma preferido |
+| PATCH | `/api/v1/users/me/locale` | Sí | Actualizar idioma preferido *(no implementado)* |
 
 † Requiere `refreshToken` en el body.
 
@@ -390,25 +390,33 @@ Retorna el perfil completo del usuario actualmente autenticado.
 **Respuesta 200:**
 ```json
 {
-  "id": "550e8400-e29b-41d4-a716-446655440000",
-  "email": "usuario@ejemplo.com",
-  "fullName": "Juan Pérez",
-  "isEmailVerified": true,
-  "locale": "es",
-  "createdAt": "2026-03-22T10:00:00.000Z",
-  "updatedAt": "2026-03-22T10:00:00.000Z"
+  "success": true,
+  "data": {
+    "id": "550e8400-e29b-41d4-a716-446655440000",
+    "documentId": "1000000001",
+    "firstName": "Juan",
+    "lastName": "Pérez",
+    "phone": "3001234567",
+    "email": "usuario@ejemplo.com",
+    "role": "client",
+    "isEmailVerified": true,
+    "createdAt": "2026-03-22T10:00:00.000Z",
+    "updatedAt": "2026-03-22T10:00:00.000Z"
+  }
 }
 ```
 
 **Errores:**
 | Código | Descripción |
 |---|---|
-| 401 | No autenticado o token inválido/expirado |
+| 401 | Sin token, token inválido/manipulado/expirado, o la cuenta del token ya no existe (ver RF-007) |
 | 500 | Error interno del servidor |
 
 ---
 
 ### `PATCH /api/v1/users/me/locale`
+
+> ⚠️ **No implementado** en el backend actual — se conserva como referencia de una versión anterior.
 
 Actualiza el idioma preferido del usuario autenticado. El valor se persiste en la base de datos.
 
