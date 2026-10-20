@@ -40,6 +40,9 @@ mediante el endpoint `POST /api/v1/auth/refresh`. Se implementa rotación de tok
 | RN-063 | Se implementa rotación de tokens: cada refresh genera un nuevo `refreshToken`.                  |
 | RN-064 | El nuevo `accessToken` tiene duración de 15 minutos.                                            |
 | RN-065 | El nuevo `refreshToken` tiene duración de 7 días.                                                |
+| RN-066 | *(nueva)* `/auth/refresh` tiene su propio rate limit (100 cada 15 min por IP) y no consume el límite de login (10 cada 15 min). |
+| RN-067 | *(nueva)* El frontend solo cierra la sesión si el refresh responde 401/403; un error de red, 429 o 5xx no la cierra. |
+| RN-068 | *(HU-004)* Se rechazan los refresh tokens emitidos antes del último cambio o restablecimiento de contraseña. |
 
 ---
 
@@ -53,16 +56,19 @@ mediante el endpoint `POST /api/v1/auth/refresh`. Se implementa rotación de tok
 **Output éxito** (HTTP 200):
 ```json
 {
-  "accessToken": "eyJ...",
-  "refreshToken": "eyJ...",
-  "tokenType": "bearer"
+  "success": true,
+  "data": { "accessToken": "eyJ...", "refreshToken": "eyJ...", "tokenType": "bearer" }
 }
 ```
 
 **Output error 401** (token inválido o expirado):
 ```json
-{ "error": "Invalid or expired refresh token" }
+{ "success": false, "error": { "code": "UNAUTHORIZED", "message": "Refresh token inválido o expirado." } }
 ```
+
+> **Límite conocido:** los tokens son JWT sin estado. El refresh token anterior **no** se invalida al
+> rotar; sigue sirviendo hasta que expira o hasta que el usuario cambia su contraseña (RN-068).
+> Invalidarlo de verdad requeriría guardar los refresh tokens en la base de datos.
 
 ---
 
