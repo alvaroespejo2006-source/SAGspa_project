@@ -27,9 +27,15 @@ export function ShopPage() {
 
   const loadOrders = () => ordersApi.listMyOrders().then(setOrders);
 
+  // ¿Qué? Si el catálogo no carga, se avisa en vez de decir "no hay productos" (HU-015).
   useEffect(() => {
-    productsApi.listProducts().then(setProducts);
-    loadOrders();
+    productsApi
+      .listProducts()
+      .then(setProducts)
+      .catch((err: unknown) => {
+        setError(err instanceof Error ? err.message : 'No se pudo cargar el catálogo.');
+      });
+    loadOrders().catch(() => undefined);
   }, []);
 
   const setQuantity = (productId: string, quantity: number) => {
@@ -97,16 +103,28 @@ export function ShopPage() {
       {products.length === 0 ? (
         <p className="text-sm text-gray-500 dark:text-slate-400 mb-10">Todavía no hay productos disponibles.</p>
       ) : (
-        <ul className="space-y-2 mb-6">
+        <ul className="space-y-2 mb-6" aria-label="Productos disponibles">
           {products.map((p) => (
             <li
               key={p.id}
               className="flex items-center justify-between rounded-lg border border-gray-200 dark:border-slate-700 px-4 py-3 text-sm"
             >
+              {/* ¿Qué? CA-015.1 — nombre, precio y categoría. CA-015.2 — "Agotado" si no hay stock. */}
               <div>
-                <p className="font-medium text-gray-900 dark:text-slate-100">{p.name}</p>
+                <p className="font-medium text-gray-900 dark:text-slate-100">
+                  {p.name}
+                  {p.stock === 0 && (
+                    <span className="ml-2 inline-block rounded-full border border-red-200 dark:border-red-800 bg-red-50 dark:bg-red-900/20 px-2 py-0.5 text-xs font-medium text-red-700 dark:text-red-400">
+                      Agotado
+                    </span>
+                  )}
+                </p>
+                {p.category && (
+                  <p className="text-xs text-gray-500 dark:text-slate-400">{p.category}</p>
+                )}
                 <p className="text-gray-500 dark:text-slate-400">
-                  ${p.price.toLocaleString('es-CO')} — {p.stock > 0 ? `${p.stock} disponibles` : 'Sin stock'}
+                  ${p.price.toLocaleString('es-CO')}
+                  {p.stock > 0 ? ` — ${p.stock} disponibles` : ''}
                 </p>
               </div>
               <div className="flex items-center gap-2">
