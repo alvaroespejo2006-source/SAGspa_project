@@ -79,6 +79,30 @@ export function ClientHomePage() {
         />
       </div>
 
+      {/* ¿Qué? "Mis mascotas" (HU-013): la lista que el staff registró a nombre del cliente.
+          ¿Para qué? La historia pide VER la lista; antes solo aparecía dentro de los selectores. */}
+      {hasPets && (
+        <section className="mt-8" aria-labelledby="my-pets-title">
+          <h2
+            id="my-pets-title"
+            className="text-lg font-semibold text-gray-900 dark:text-slate-100 mb-3"
+          >
+            🐾 Mis mascotas
+          </h2>
+          <ul className="grid gap-2 sm:grid-cols-2">
+            {(pets ?? []).map((pet) => (
+              <li
+                key={pet.id}
+                className="rounded-lg border border-gray-200 dark:border-slate-700 px-4 py-3 text-sm"
+              >
+                <p className="font-medium text-gray-900 dark:text-slate-100">{pet.name}</p>
+                <p className="text-gray-500 dark:text-slate-400">{describePet(pet)}</p>
+              </li>
+            ))}
+          </ul>
+        </section>
+      )}
+
       <div className="grid gap-4 mt-8 pt-8 border-t border-gray-200 dark:border-slate-700">
         <SemaforoOption
           to="/app/tienda"
@@ -89,6 +113,14 @@ export function ClientHomePage() {
       </div>
     </div>
   );
+}
+
+// ¿Qué? Resumen de una mascota: "Canina · Criollo · 3 años".
+function describePet(pet: Pet): string {
+  const parts: string[] = [pet.species === 'felina' ? 'Felina' : 'Canina'];
+  if (pet.breed) parts.push(pet.breed);
+  if (pet.age != null) parts.push(`${pet.age} ${pet.age === 1 ? 'año' : 'años'}`);
+  return parts.join(' · ');
 }
 
 interface SemaforoOptionProps {
