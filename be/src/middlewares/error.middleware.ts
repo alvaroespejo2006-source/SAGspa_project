@@ -46,16 +46,18 @@ export class ForbiddenError extends AppError {
 // ¿Qué? 404 Not Found — el recurso solicitado no existe en la base de datos.
 // ¿Para qué? Comunicar al cliente que la entidad buscada (usuario, token, etc.) no fue hallada.
 // ¿Impacto? El cliente puede mostrar un mensaje apropiado sin confundirlo con un error del servidor.
+// ¿Qué? `code` opcional — ej. PRODUCT_UNAVAILABLE al confirmar un pedido (HU-016).
 export class NotFoundError extends AppError {
-  constructor(message = 'Not found') { super(message, 404, 'NOT_FOUND'); }
+  constructor(message = 'Not found', code = 'NOT_FOUND') { super(message, 404, code); }
 }
 
 // ¿Qué? 409 Conflict — el recurso ya existe y no se puede crear duplicado.
 // ¿Para qué? Indicar al cliente que el dato que intenta registrar viola una restricción
 //   de unicidad, como un email ya registrado.
 // ¿Impacto? El cliente puede mostrar "este email ya está en uso" sin ambigüedad.
+// ¿Qué? `code` opcional, igual que BadRequestError — ej. OUT_OF_STOCK al confirmar un pedido (HU-016).
 export class ConflictError extends AppError {
-  constructor(message: string) { super(message, 409, 'CONFLICT'); }
+  constructor(message: string, code = 'CONFLICT') { super(message, 409, code); }
 }
 
 // ¿Qué? 400 Bad Request para errores de lógica de negocio (token inválido, usado, expirado).

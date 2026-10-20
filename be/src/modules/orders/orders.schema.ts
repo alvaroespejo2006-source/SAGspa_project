@@ -10,10 +10,16 @@ export const createOrderSchema = z.object({
     .array(
       z.object({
         productId: z.string().uuid('El productId debe ser un UUID válido.'),
-        quantity: z.coerce.number().int().positive('La cantidad debe ser mayor a 0.'),
+        quantity: z.coerce
+          .number({ invalid_type_error: 'La cantidad debe ser un número.' })
+          .int('La cantidad debe ser un número entero.')
+          .positive('La cantidad debe ser mayor a 0.')
+          .max(99, 'Máximo 99 unidades por producto.'),
       }),
+      { required_error: 'El pedido debe tener al menos un producto.' },
     )
-    .min(1, 'El pedido debe tener al menos un producto.'),
+    .min(1, 'El pedido debe tener al menos un producto.')
+    .max(50, 'El pedido no puede tener más de 50 productos distintos.'),
 });
 
 export type CreateOrderInput = z.infer<typeof createOrderSchema>;

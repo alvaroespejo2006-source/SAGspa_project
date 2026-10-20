@@ -31,29 +31,53 @@ export interface StaffOrderResponse extends OrderResponse {
 // ¿Para qué? Valida stock, calcula el total en el servidor y reserva (descuenta) el
 //   stock de cada producto dentro de una única transacción — o todo se aplica, o nada.
 export async function createOrder(clientId: string, data: CreateOrderInput): Promise<OrderResponse> {
+  // ¿Qué? Junta las líneas repetidas del mismo producto en una sola (2 + 1 → 3).
+  // ¿Para qué? Validar el stock contra la cantidad TOTAL pedida de cada producto.
+  const quantities = new Map<string, number>();
+  for (const item of data.items) {
+    quantities.set(item.productId, (quantities.get(item.productId) ?? 0) + item.quantity);
+  }
+
   return db.$transaction(async (tx) => {
     let total = 0;
     const lineItems: { productId: string; name: string; quantity: number; unitPrice: number }[] = [];
 
-    for (const item of data.items) {
-      const product = await tx.product.findUnique({ where: { id: item.productId } });
+    for (const [productId, quantity] of quantities) {
+      const product = await tx.product.findUnique({ where: { id: productId } });
 
+      // ¿Qué? El mensaje nombra el producto (antes mostraba su UUID al cliente).
       if (!product || !product.active) {
-        throw new NotFoundError(`Producto no encontrado: ${item.productId}`);
+        throw new NotFoundError(
+          product
+            ? `"${product.name}" ya no está disponible. Quítalo del carrito para continuar.`
+            : 'Uno de los productos de tu carrito ya no está disponible.',
+          'PRODUCT_UNAVAILABLE',
+        );
       }
-      if (product.stock < item.quantity) {
-        throw new ConflictError(`Stock insuficiente para el producto: ${product.name}`);
+
+      // RN-163: se reserva (descuenta) el stock de inmediato, al crear el pedido.
+      // ¿Qué? Descuento CONDICIONAL y atómico: solo descuenta si todavía hay `quantity` unidades.
+      // ¿Para qué? Antes se leía el stock y luego se descontaba: dos pedidos simultáneos por la
+      //   última unidad pasaban los dos la revisión y el stock quedaba en -1 (CA-016.4). Con el
+      //   WHERE stock >= quantity, Postgres bloquea la fila y el segundo pedido no descuenta nada.
+      const reserved = await tx.product.updateMany({
+        where: { id: productId, stock: { gte: quantity } },
+        data: { stock: { decrement: quantity } },
+      });
+      if (reserved.count === 0) {
+        const current = await tx.product.findUnique({ where: { id: productId } });
+        const left = current?.stock ?? 0;
+        throw new ConflictError(
+          left === 0
+            ? `"${product.name}" se agotó. Quítalo del carrito para continuar.`
+            : `Solo quedan ${left} unidades de "${product.name}". Ajusta la cantidad en tu carrito.`,
+          'OUT_OF_STOCK',
+        );
       }
 
       const unitPrice = Number(product.price);
-      total += unitPrice * item.quantity;
-      lineItems.push({ productId: product.id, name: product.name, quantity: item.quantity, unitPrice });
-
-      // RN-163: se reserva (descuenta) el stock de inmediato, al crear el pedido.
-      await tx.product.update({
-        where: { id: product.id },
-        data: { stock: { decrement: item.quantity } },
-      });
+      total += unitPrice * quantity;
+      lineItems.push({ productId: product.id, name: product.name, quantity, unitPrice });
     }
 
     const order = await tx.order.create({
