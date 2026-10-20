@@ -107,16 +107,24 @@ export async function reviewReport(
   id: string,
   data: ReviewSymptomReportInput,
 ): Promise<SymptomReportResponse> {
-  const existing = await db.symptomReport.findUnique({ where: { id } });
-  if (!existing) throw new NotFoundError('Reporte no encontrado.');
-  if (existing.status === 'reviewed') {
-    throw new BadRequestError('Este reporte ya fue revisado.');
-  }
-
-  const updated = await db.symptomReport.update({
-    where: { id },
+  // ¿Qué? Actualización CONDICIONAL: solo si el reporte sigue pendiente.
+  // ¿Para qué? Antes se leía el estado y luego se actualizaba: si dos personas del staff
+  //   respondían el mismo reporte a la vez, la segunda sobrescribía la recomendación de la
+  //   primera. Con el WHERE status = 'pending' solo una de las dos queda guardada.
+  const result = await db.symptomReport.updateMany({
+    where: { id, status: 'pending' },
     data: { status: 'reviewed', recommendation: data.recommendation, reviewedAt: new Date() },
   });
 
+  if (result.count === 0) {
+    const existing = await db.symptomReport.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundError('Reporte no encontrado.');
+    throw new BadRequestError(
+      'Este reporte ya fue revisado por otra persona del staff.',
+      'REPORT_ALREADY_REVIEWED',
+    );
+  }
+
+  const updated = await db.symptomReport.findUniqueOrThrow({ where: { id } });
   return toResponse(updated);
 }
