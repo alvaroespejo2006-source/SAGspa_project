@@ -24,6 +24,11 @@ const SPECIES_OPTIONS: { value: PetSpecies; label: string }[] = [
   { value: 'canina', label: 'Canina' },
   { value: 'felina', label: 'Felina' },
 ];
+// ¿Qué? Sexo como lista cerrada (HU-012) — mismo enum que el backend (PET_GENDERS).
+const GENDER_OPTIONS = [
+  { value: 'macho', label: 'Macho' },
+  { value: 'hembra', label: 'Hembra' },
+];
 const SIZE_OPTIONS = Object.entries(SIZE_LABELS) as [PetSize, string][];
 const COAT_OPTIONS = Object.entries(COAT_LABELS) as [CoatType, string][];
 const BEHAVIOR_OPTIONS = Object.entries(BEHAVIOR_LABELS) as [PetBehavior, string][];
@@ -68,12 +73,35 @@ const EMPTY_FORM: FormData = {
   pathology: 'No aplica',
 };
 
+// ¿Qué? Errores por campo del formulario de mascota.
+type FieldErrors = Partial<Record<'name' | 'species' | 'age' | 'weight', string>>;
+
+// ¿Qué? Valida antes de enviar, con las mismas reglas del backend (HU-012, CA-012.1).
+// ¿Para qué? Antes solo se revisaba la especie: un nombre vacío o una edad con decimales
+//   llegaban al servidor y volvían como un error genérico.
+function validateForm(data: FormData): FieldErrors {
+  const errors: FieldErrors = {};
+  if (!data.name.trim()) errors.name = 'El nombre de la mascota es requerido.';
+  if (!data.species) errors.species = 'Selecciona la especie de la mascota.';
+  if (data.age !== '') {
+    const age = Number(data.age);
+    if (!Number.isInteger(age) || age < 0) errors.age = 'La edad debe ser un número entero de años.';
+    else if (age > 40) errors.age = 'Revisa la edad: no puede superar los 40 años.';
+  }
+  if (data.weight !== '' && !(Number(data.weight) > 0)) {
+    errors.weight = 'El peso debe ser mayor a 0.';
+  }
+  return errors;
+}
+
 function petToForm(pet: Pet): FormData {
+  // ¿Qué? Mascotas registradas antes con sexo en texto libre: solo se conserva si es válido.
+  const gender = pet.gender?.trim().toLowerCase() ?? '';
   return {
     name: pet.name,
     species: pet.species,
     breed: pet.breed ?? '',
-    gender: pet.gender ?? '',
+    gender: GENDER_OPTIONS.some((g) => g.value === gender) ? gender : '',
     age: pet.age != null ? String(pet.age) : '',
     weight: pet.weight != null ? String(pet.weight) : '',
     color: pet.color ?? '',
@@ -97,7 +125,17 @@ export function StaffPetsPage() {
   const [isSearching, setIsSearching] = useState(false);
   const [isSubmitting, setIsSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [fieldErrors, setFieldErrors] = useState<FieldErrors>({});
   const [success, setSuccess] = useState<string | null>(null);
+
+  // ¿Qué? Carga las mascotas del cliente; si falla, lo dice en vez de mostrar "no tiene mascotas".
+  const loadPets = (clientId: string) =>
+    petsApi
+      .listPetsByClient(clientId)
+      .then(setPets)
+      .catch((err: unknown) => {
+        setError(err instanceof Error ? err.message : 'No se pudieron cargar las mascotas.');
+      });
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
@@ -125,11 +163,13 @@ export function StaffPetsPage() {
     setSuccess(null);
     setError(null);
     resetForm();
-    petsApi.listPetsByClient(client.id).then(setPets);
+    setPets([]);
+    loadPets(client.id);
   };
 
   const resetForm = () => {
     setFormData(EMPTY_FORM);
+    setFieldErrors({});
     setEditingId(null);
   };
 
@@ -145,6 +185,7 @@ export function StaffPetsPage() {
     e: React.ChangeEvent<HTMLInputElement | HTMLTextAreaElement | HTMLSelectElement>,
   ) => {
     setFormData((prev) => ({ ...prev, [e.target.name]: e.target.value }));
+    setFieldErrors((prev) => ({ ...prev, [e.target.name]: undefined }));
   };
 
   const toggleCondition = (type: SkinConditionType) => {
@@ -159,16 +200,16 @@ export function StaffPetsPage() {
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
     if (!selectedClient) return;
-    if (!formData.species) {
-      setError('Selecciona la especie de la mascota.');
-      return;
-    }
+    setSuccess(null);
+    const errors = validateForm(formData);
+    setFieldErrors(errors);
+    if (Object.keys(errors).length > 0 || !formData.species) return;
+
     setIsSubmitting(true);
     setError(null);
-    setSuccess(null);
 
     const payload = {
-      name: formData.name,
+      name: formData.name.trim(),
       species: formData.species,
       breed: formData.breed || undefined,
       gender: formData.gender || undefined,
@@ -191,7 +232,8 @@ export function StaffPetsPage() {
         setSuccess('Mascota registrada correctamente.');
       }
       resetForm();
-      setPets(await petsApi.listPetsByClient(selectedClient.id));
+      // ¿Qué? CA-012.3 — la mascota aparece en el listado de este cliente.
+      await loadPets(selectedClient.id);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo guardar la mascota.');
     } finally {
@@ -287,6 +329,7 @@ export function StaffPetsPage() {
               value={formData.name}
               onChange={handleChange}
               placeholder="Ej: Max"
+              error={fieldErrors.name}
             />
             <SelectField
               id="species"
@@ -295,6 +338,7 @@ export function StaffPetsPage() {
               required
               value={formData.species}
               onChange={handleChange}
+              error={fieldErrors.species}
             >
               <option value="" disabled>Selecciona una especie</option>
               {SPECIES_OPTIONS.map((opt) => (
@@ -308,14 +352,18 @@ export function StaffPetsPage() {
               value={formData.breed}
               onChange={handleChange}
             />
-            <InputField
+            <SelectField
               id="gender"
               name="gender"
               label="Sexo (opcional)"
               value={formData.gender}
               onChange={handleChange}
-              placeholder="Ej: Macho, Hembra"
-            />
+            >
+              <option value="">Sin especificar</option>
+              {GENDER_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>{opt.label}</option>
+              ))}
+            </SelectField>
             <InputField
               id="age"
               name="age"
@@ -324,6 +372,7 @@ export function StaffPetsPage() {
               min={0}
               value={formData.age}
               onChange={handleChange}
+              error={fieldErrors.age}
             />
             <InputField
               id="weight"
@@ -335,6 +384,7 @@ export function StaffPetsPage() {
               value={formData.weight}
               onChange={handleChange}
               placeholder="Ej: 8.5"
+              error={fieldErrors.weight}
             />
             <InputField
               id="color"
@@ -474,6 +524,8 @@ export function StaffPetsPage() {
                         <span className="text-gray-500 dark:text-slate-400">
                           {' '}— {SPECIES_OPTIONS.find((opt) => opt.value === p.species)?.label ?? p.species}
                           {p.breed ? `, ${p.breed}` : ''}
+                          {p.gender ? `, ${p.gender.toLowerCase()}` : ''}
+                          {p.age != null ? `, ${p.age} ${p.age === 1 ? 'año' : 'años'}` : ''}
                           {p.weight != null ? `, ${p.weight} kg` : ''}
                           {p.size ? `, ${SIZE_LABELS[p.size].toLowerCase()}` : ''}
                           {p.coatType ? `, pelo ${COAT_LABELS[p.coatType].toLowerCase()}` : ''}
