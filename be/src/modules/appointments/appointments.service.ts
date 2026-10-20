@@ -201,9 +201,14 @@ export async function updateAppointmentStatus(
   const existing = await db.appointment.findUnique({ where: { id } });
   if (!existing) throw new NotFoundError('Cita no encontrada.');
 
-  // RN-097 (parcial): un estado final (completed/cancelled) no puede volver a moverse.
+  // RN-173: un estado final (completed/cancelled) no puede volver a moverse.
+  // ¿Qué? Mensaje en español con el nombre del estado (antes decía "(completed)").
   if (existing.status === 'completed' || existing.status === 'cancelled') {
-    throw new BadRequestError(`La cita ya está en estado final (${existing.status}) y no puede modificarse.`);
+    const label = existing.status === 'completed' ? 'atendida' : 'cancelada';
+    throw new BadRequestError(
+      `Esta cita ya está ${label} y no se puede modificar.`,
+      'APPOINTMENT_FINAL_STATE',
+    );
   }
 
   const updated = await db.appointment.update({ where: { id }, data: { status: data.status } });

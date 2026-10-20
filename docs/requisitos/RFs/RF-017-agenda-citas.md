@@ -35,9 +35,9 @@ mediante `PUT /api/v1/appointments/:id`.
 | ID     | Regla                                                                                         |
 | ------ | ------------------------------------------------------------------------------------------------ |
 | RN-170 | Solo un usuario con `role = 'staff'` puede consultar la agenda o cambiar el estado de una cita.   |
-| RN-171 | La agenda se filtra siempre por una fecha específica — no se listan todas las citas de golpe.     |
+| RN-171 | La agenda se filtra siempre por una fecha específica — no se listan todas las citas de golpe. Sin `?date=`, se usa **hoy en la zona horaria del negocio** (`BUSINESS_TIMEZONE`). |
 | RN-172 | Los únicos estados a los que el staff puede mover una cita son: `confirmed`, `completed`, `cancelled`. |
-| RN-173 | Una cita en estado `completed` o `cancelled` no puede volver a `pending`.                          |
+| RN-173 | Una cita en estado `completed` o `cancelled` no puede moverse a ningún otro estado: 400 `APPOINTMENT_FINAL_STATE` ("Esta cita ya está atendida/cancelada y no se puede modificar."). |
 | RN-174 | Cada cita en la respuesta incluye el tipo (`grooming`) para que el frontend la pinte con el color verde del semáforo. |
 
 ---
