@@ -22,6 +22,9 @@ export async function updateSupplier(id: string, data: UpdateSupplierRequest): P
   return res.data.data;
 }
 
-export async function deleteSupplier(id: string): Promise<void> {
-  await apiClient.delete(`/suppliers/${id}`);
+// ¿Qué? Devuelve el mensaje del backend: "Proveedor eliminado." o que se desactivó porque
+//   tenía pedidos (HU-020, CA-020.3).
+export async function deleteSupplier(id: string): Promise<string> {
+  const res = await apiClient.delete<{ message: string }>(`/suppliers/${id}`);
+  return res.data.message;
 }
