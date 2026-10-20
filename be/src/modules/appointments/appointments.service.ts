@@ -15,6 +15,7 @@ import {
 } from '../../middlewares/error.middleware.js';
 import { assertPetBelongsToClient } from '../pets/pets.service.js';
 import { calculatePrice, type PriceBreakdown } from '../pricing/pricing.service.js';
+import { addDays, todayInBusinessTimezone } from '../../utils/dates.js';
 import type { CreateAppointmentInput, UpdateAppointmentStatusInput } from './appointments.schema.js';
 
 export interface AppointmentResponse {
@@ -51,12 +52,12 @@ function toAppointmentResponse(appt: Appointment): AppointmentResponse {
   };
 }
 
-// ¿Qué? Calcula la fecha mínima permitida (mañana, a partir de hoy) en formato AAAA-MM-DD.
+// ¿Qué? Calcula la fecha mínima permitida (mañana) en formato AAAA-MM-DD.
 // ¿Para qué? Aplicar RN-092: "la cita debe ser a partir de mañana".
+// ¿Impacto? "Mañana" se cuenta en la zona horaria del negocio (America/Bogota): antes se
+//   usaba UTC y, desde las 7:00 p.m. en Colombia, se rechazaban las citas para mañana.
 function minimumAllowedDate(): string {
-  const tomorrow = new Date();
-  tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
-  return toDateOnly(tomorrow);
+  return addDays(todayInBusinessTimezone(), 1);
 }
 
 // ¿Qué? Convierte "HH:mm" a minutos desde medianoche, para comparar contra el horario de atención.
@@ -79,13 +80,14 @@ export async function createAppointment(
 
   // RN-092: la cita debe ser, como mínimo, para el día siguiente a hoy.
   if (data.date < minimumAllowedDate()) {
-    throw new BadRequestError('La cita debe ser a partir de mañana, no se permite hoy ni fechas anteriores.');
+    // ¿Qué? Mismo texto de CA-009.3.
+    throw new BadRequestError('La cita debe ser a partir de mañana.', 'DATE_TOO_SOON');
   }
 
   // RN-093: la hora debe estar dentro del horario de atención (9:00 a.m. - 6:00 p.m.).
   const minutes = toMinutes(data.time);
   if (minutes < OPENING_MINUTES || minutes > CLOSING_MINUTES) {
-    throw new BadRequestError('La hora debe estar entre las 9:00am y las 6:00pm.');
+    throw new BadRequestError('La hora debe estar entre las 9:00am y las 6:00pm.', 'OUTSIDE_BUSINESS_HOURS');
   }
 
   // RN-094: el servicio debe existir y estar activo.
