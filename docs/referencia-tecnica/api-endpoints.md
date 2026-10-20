@@ -32,6 +32,8 @@
 | POST | `/api/v1/auth/forgot-password` | No | Solicitar recuperación |
 | POST | `/api/v1/auth/reset-password` | No | Restablecer contraseña |
 | GET | `/api/v1/users/me` | Sí | Perfil del usuario |
+| POST | `/api/v1/staff` | Sí (staff) | Crear una cuenta de staff (RF-008) |
+| GET | `/api/v1/staff` | Sí (staff) | Listar las cuentas de staff (RF-008) |
 | PATCH | `/api/v1/users/me/locale` | Sí | Actualizar idioma preferido |
 
 † Requiere `refreshToken` en el body.
