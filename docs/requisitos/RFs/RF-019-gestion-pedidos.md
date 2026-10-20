@@ -36,7 +36,9 @@ y `PUT /api/v1/staff/orders/:id`.
 | RN-190 | Solo un usuario con `role = 'staff'` puede cambiar el estado de un pedido.                        |
 | RN-191 | Un pedido `completed` marca automáticamente `paymentStatus = 'paid'` — el staff no lo envía en el body, lo deriva el servidor. |
 | RN-192 | Cancelar un pedido restaura automáticamente el `stock` reservado de sus productos.                 |
-| RN-193 | Un pedido `completed` o `cancelled` no puede volver a `pending`.                                   |
+| RN-193 | Un pedido `completed` o `cancelled` no puede cambiar de estado: 400 `ORDER_FINAL_STATE` ("Este pedido ya está completado/cancelado y no se puede modificar."). |
+| RN-194 | *(nueva)* El cierre es un `UPDATE` condicional (`status = 'pending'`) que se hace **antes** de devolver el stock: con cancelaciones simultáneas, el stock se devuelve una sola vez (antes se devolvía varias veces). |
+| RN-195 | *(nueva)* `GET /api/v1/staff/orders?status=pending|completed|cancelled` — por defecto `pending` (del más antiguo al más nuevo); los cerrados, del más reciente al más antiguo. Otro valor → 422. |
 
 ---
 
