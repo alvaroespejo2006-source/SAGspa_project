@@ -30,12 +30,15 @@ const CLASSES: Record<string, string> = {
   received: 'bg-green-50 dark:bg-green-900/20 text-green-700 dark:text-green-400 border-green-200 dark:border-green-800',
 };
 
-export function StatusBadge({ status }: { status: string }) {
+// ¿Qué? `label` opcional reemplaza el texto por defecto del estado.
+// ¿Para qué? Una cita `completed` se muestra como "Atendida" (CA-009.6), mientras que un
+//   pedido `completed` sigue diciendo "Completada".
+export function StatusBadge({ status, label }: { status: string; label?: string }) {
   return (
     <span
       className={`inline-block px-2 py-0.5 text-xs font-medium rounded-full border ${CLASSES[status] ?? 'bg-gray-50 dark:bg-slate-800 text-gray-700 dark:text-slate-300 border-gray-200 dark:border-slate-600'}`}
     >
-      {LABELS[status] ?? status}
+      {label ?? LABELS[status] ?? status}
     </span>
   );
 }
