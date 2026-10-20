@@ -14,8 +14,10 @@
 | **Título**       | Gestión del catálogo de servicios  |
 | **Módulo**       | Servicios                              |
 | **Prioridad**    | Alta                                      |
-| **Estado**       | Por implementar                            |
+| **Estado**       | Implementada                               |
 | **RF asociados** | RF-014                                      |
+| **Responsable**  | Yesid Valencia                              |
+| **Rama**         | `feature/HU-014-catalogo-servicios`         |
 
 ---
 
@@ -33,16 +35,19 @@
 - **Dado que** inicié sesión como staff,
 - **cuando** completo el formulario de nuevo servicio (nombre, precio, duración) y lo envío,
 - **entonces** el servicio aparece en el catálogo y queda disponible para que los clientes lo elijan al agendar.
+- Cada campo valida antes de enviar: nombre de al menos 2 caracteres (sin contar espacios), precio mayor a 0 y duración entera de 1 a 480 minutos.
 
 ### CA-014.2 — Editar precio
 - **Dado que** un servicio ya existe,
 - **cuando** edito su precio y guardo,
 - **entonces** el nuevo precio se refleja de inmediato en el catálogo que ven los clientes.
+- En la pantalla del staff, el botón "Editar" de cada servicio carga sus datos en el formulario (nombre, descripción, precio y duración).
 
 ### CA-014.3 — Desactivar en vez de eliminar
 - **Dado que** un servicio ya tiene citas agendadas asociadas,
 - **cuando** intento eliminarlo,
 - **entonces** el sistema lo marca como inactivo en vez de borrarlo, y deja de aparecer en el catálogo para nuevos clientes.
+- Antes de eliminar, la pantalla pide confirmación; después dice "El servicio tiene citas asociadas, así que se desactivó en lugar de eliminarse." o "Servicio eliminado."
 
 ### CA-014.4 — Catálogo visible para el cliente
 - **Dado que** soy cliente y estoy agendando una cita,
