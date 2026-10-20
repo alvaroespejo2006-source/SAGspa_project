@@ -8,7 +8,7 @@
 
 import type { Request, Response, NextFunction } from 'express';
 import type { ZodSchema } from 'zod';
-import { ValidationError } from './error.middleware.js';
+import { NotFoundError, ValidationError } from './error.middleware.js';
 
 // ¿Qué? Factory que retorna un middleware de validación para un schema zod dado.
 // ¿Para qué? Usar en rutas: router.post('/register', validate(registerSchema), controller)
@@ -30,4 +30,24 @@ export function validate(schema: ZodSchema) {
     req.body = result.data;
     next();
   };
+}
+
+// ¿Qué? UUID con el formato que usa Postgres (8-4-4-4-12 caracteres hexadecimales).
+const UUID_REGEX = /^[0-9a-f]{8}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{4}-[0-9a-f]{12}$/i;
+
+// ¿Qué? Handler para `router.param('id', validateIdParam)`: un `:id` que no es UUID → 404.
+// ¿Para qué? Antes, una URL como PUT /services/abc llegaba a Prisma, que fallaba con
+//   "invalid input syntax for type uuid" y la API respondía 500 (HU-013).
+// ¿Impacto? Un id mal formado se trata igual que uno que no existe: 404, sin tocar la BD.
+export function validateIdParam(
+  _req: Request,
+  _res: Response,
+  next: NextFunction,
+  value: string,
+): void {
+  if (!UUID_REGEX.test(value)) {
+    next(new NotFoundError('No se encontró el recurso solicitado.'));
+    return;
+  }
+  next();
 }
