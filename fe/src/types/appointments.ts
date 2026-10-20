@@ -22,6 +22,12 @@ export interface Appointment {
   createdAt: string;
 }
 
+// ¿Qué? Cita de GET /appointments/me — trae los nombres de mascota y servicio (HU-009).
+export interface MyAppointment extends Appointment {
+  pet: { id: string; name: string };
+  service: { id: string; name: string };
+}
+
 export interface CreateAppointmentRequest {
   petId: string;
   serviceId: string;

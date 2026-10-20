@@ -42,6 +42,23 @@ apiClient.interceptors.request.use((config) => {
   return config;
 });
 
+// ¿Qué? El middleware `validate` del backend (422) manda en `message` un JSON en texto:
+//   '[{"field":"date","message":"..."}]'. Esto lo convierte en las frases legibles.
+// ¿Para qué? Antes la pantalla mostraba ese JSON tal cual al usuario (HU-009).
+// ¿Impacto? Si el texto no es ese JSON (cualquier otro error), se devuelve sin cambios.
+function readableMessage(message: string): string {
+  if (!message.startsWith('[')) return message;
+  try {
+    const details = JSON.parse(message) as { message?: unknown }[];
+    const messages = details
+      .map((d) => d.message)
+      .filter((m): m is string => typeof m === 'string');
+    return messages.length > 0 ? [...new Set(messages)].join(' ') : message;
+  } catch {
+    return message;
+  }
+}
+
 // ¿Qué? Convierte un AxiosError en un ApiError con mensaje + código legibles.
 function toApiError(err: AxiosError<ApiErrorResponse>): ApiError {
   const body = err.response?.data;
@@ -49,7 +66,7 @@ function toApiError(err: AxiosError<ApiErrorResponse>): ApiError {
   if (!body) return new ApiError('No se pudo conectar con el servidor.', null, status);
   if (typeof body.error === 'string') return new ApiError(body.error, null, status);
   return new ApiError(
-    body.error?.message ?? 'Ocurrió un error inesperado.',
+    readableMessage(body.error?.message ?? 'Ocurrió un error inesperado.'),
     body.error?.code ?? null,
     status,
   );

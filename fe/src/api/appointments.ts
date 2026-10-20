@@ -10,6 +10,7 @@ import type {
   Appointment,
   AppointmentStatus,
   CreateAppointmentRequest,
+  MyAppointment,
 } from '@/types/appointments';
 import type { PriceBreakdown } from '@/types/pricing';
 
@@ -28,8 +29,8 @@ export async function quoteAppointment(petId: string, serviceId: string): Promis
   return res.data.data;
 }
 
-export async function listMyAppointments(): Promise<Appointment[]> {
-  const res = await apiClient.get<ApiResponse<Appointment[]>>('/appointments/me');
+export async function listMyAppointments(): Promise<MyAppointment[]> {
+  const res = await apiClient.get<ApiResponse<MyAppointment[]>>('/appointments/me');
   return res.data.data;
 }
 

@@ -15,6 +15,7 @@ import {
 } from '../../middlewares/error.middleware.js';
 import { assertPetBelongsToClient } from '../pets/pets.service.js';
 import { calculatePrice, type PriceBreakdown } from '../pricing/pricing.service.js';
+import { addDays, todayInBusinessTimezone } from '../../utils/dates.js';
 import type { CreateAppointmentInput, UpdateAppointmentStatusInput } from './appointments.schema.js';
 
 export interface AppointmentResponse {
@@ -51,12 +52,12 @@ function toAppointmentResponse(appt: Appointment): AppointmentResponse {
   };
 }
 
-// ¿Qué? Calcula la fecha mínima permitida (mañana, a partir de hoy) en formato AAAA-MM-DD.
+// ¿Qué? Calcula la fecha mínima permitida (mañana) en formato AAAA-MM-DD.
 // ¿Para qué? Aplicar RN-092: "la cita debe ser a partir de mañana".
+// ¿Impacto? "Mañana" se cuenta en la zona horaria del negocio (America/Bogota): antes se
+//   usaba UTC y, desde las 7:00 p.m. en Colombia, se rechazaban las citas para mañana.
 function minimumAllowedDate(): string {
-  const tomorrow = new Date();
-  tomorrow.setUTCDate(tomorrow.getUTCDate() + 1);
-  return toDateOnly(tomorrow);
+  return addDays(todayInBusinessTimezone(), 1);
 }
 
 // ¿Qué? Convierte "HH:mm" a minutos desde medianoche, para comparar contra el horario de atención.
@@ -79,13 +80,14 @@ export async function createAppointment(
 
   // RN-092: la cita debe ser, como mínimo, para el día siguiente a hoy.
   if (data.date < minimumAllowedDate()) {
-    throw new BadRequestError('La cita debe ser a partir de mañana, no se permite hoy ni fechas anteriores.');
+    // ¿Qué? Mismo texto de CA-009.3.
+    throw new BadRequestError('La cita debe ser a partir de mañana.', 'DATE_TOO_SOON');
   }
 
   // RN-093: la hora debe estar dentro del horario de atención (9:00 a.m. - 6:00 p.m.).
   const minutes = toMinutes(data.time);
   if (minutes < OPENING_MINUTES || minutes > CLOSING_MINUTES) {
-    throw new BadRequestError('La hora debe estar entre las 9:00am y las 6:00pm.');
+    throw new BadRequestError('La hora debe estar entre las 9:00am y las 6:00pm.', 'OUTSIDE_BUSINESS_HOURS');
   }
 
   // RN-094: el servicio debe existir y estar activo.
@@ -139,13 +141,26 @@ export async function quoteAppointment(
   return calculatePrice(serviceId, petId);
 }
 
+// ¿Qué? Cita de "Mis citas" con el nombre de la mascota y del servicio (HU-009, CA-009.6).
+// ¿Para qué? El frontend buscaba el nombre en el catálogo de servicios ACTIVOS: si el staff
+//   desactivaba un servicio, sus citas ya agendadas aparecían como "Servicio".
+export interface MyAppointmentResponse extends AppointmentResponse {
+  pet: { id: string; name: string };
+  service: { id: string; name: string };
+}
+
 // ¿Qué? Lista las citas del cliente autenticado, más recientes primero.
-export async function listMyAppointments(clientId: string): Promise<AppointmentResponse[]> {
+export async function listMyAppointments(clientId: string): Promise<MyAppointmentResponse[]> {
   const appointments = await db.appointment.findMany({
     where: { clientId },
     orderBy: [{ date: 'desc' }, { time: 'desc' }],
+    include: { pet: true, service: true },
   });
-  return appointments.map(toAppointmentResponse);
+  return appointments.map((a) => ({
+    ...toAppointmentResponse(a),
+    pet: { id: a.pet.id, name: a.pet.name },
+    service: { id: a.service.id, name: a.service.name },
+  }));
 }
 
 // ¿Qué? Forma enriquecida de una cita para la agenda del staff (RF-017) — incluye los
