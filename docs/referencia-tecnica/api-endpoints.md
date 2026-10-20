@@ -225,20 +225,26 @@ Renueva el par de tokens (access + refresh). Implementa rotación de tokens.
 **Respuesta 200:**
 ```json
 {
-  "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-  "refreshToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-  "tokenType": "bearer"
+  "success": true,
+  "data": {
+    "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+    "refreshToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+    "tokenType": "bearer"
+  }
 }
 ```
 
 **Errores:**
 | Código | Descripción |
 |---|---|
-| 401 | Refresh token inválido o expirado |
+| 401 | Refresh token inválido, expirado, de otro tipo, de una cuenta eliminada o anterior a un cambio de contraseña |
 | 422 | Body inválido |
+| 429 | Más de 100 renovaciones en 15 minutos desde la misma IP |
 | 500 | Error interno del servidor |
 
-> ℹ️ Rotación de tokens: cada llamada exitosa a `/refresh` genera un **nuevo** `refreshToken`. El anterior queda obsoleto.
+> ℹ️ Rotación de tokens: cada llamada exitosa a `/refresh` genera un **nuevo** `refreshToken`.
+> Como los tokens no se guardan en la BD, el anterior sigue siendo válido hasta que expira
+> o hasta que el usuario cambia su contraseña (HU-004).
 
 ---
 
@@ -482,12 +488,11 @@ En errores de validación (422), se incluyen los detalles:
 
 | Endpoint | Límite | Ventana |
 |---|---|---|
-| `POST /api/v1/auth/login` | 10 requests | 15 minutos |
-| `POST /api/v1/auth/register` | 10 requests | 15 minutos |
-| `POST /api/v1/auth/forgot-password` | 5 requests | 15 minutos |
-| `POST /api/v1/auth/verify-email` | 10 requests | 15 minutos |
-| `POST /api/v1/auth/resend-verification` | 10 requests | 15 minutos |
+| Todos los de `/api/v1/auth/*` **excepto** `/refresh` (login, register, forgot/reset-password, verify-email, resend-verification, change-password) | 10 requests **en total** por IP | 15 minutos |
+| `POST /api/v1/auth/refresh` | 100 requests por IP (contador propio — HU-006) | 15 minutos |
 | `GET /api/v1/users/me` | Sin límite para usuarios auth | — |
+
+> El contador de `/auth` es **compartido**: 10 intentos entre todos esos endpoints, no 10 por cada uno.
 
 ---
 

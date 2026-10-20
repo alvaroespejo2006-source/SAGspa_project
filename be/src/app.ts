@@ -59,7 +59,11 @@ const authRateLimit = rateLimit({
   // ¿Qué? En entorno de tests se deshabilita el rate limit para evitar 429
   // por la ráfaga de peticiones que genera el suite de tests.
   // ¿Impacto? No afecta producción — NODE_ENV=test solo lo setea Vitest.
-  skip: () => process.env.NODE_ENV === 'test',
+  // ¿Qué? /refresh tampoco cuenta aquí: tiene su propio límite (refreshRateLimit, abajo).
+  // ¿Para qué? Renovar la sesión no es un intento de contraseña. Con el límite compartido,
+  //   unos pocos logins desde la misma IP (todo el staff del spa sale por la misma red)
+  //   hacían que el refresh respondiera 429 y el frontend sacara a todos al login (HU-006).
+  skip: (req) => process.env.NODE_ENV === 'test' || req.path === '/refresh',
   standardHeaders: true,
   legacyHeaders: false,
   // ¿Qué? Mismo formato { success, error } que el errorHandler, y mensaje en español.
@@ -74,6 +78,24 @@ const authRateLimit = rateLimit({
   },
 });
 
+// ¿Qué? Límite propio para POST /auth/refresh (HU-006, RN-066).
+// ¿Para qué? Sigue frenando el abuso, pero con margen para varias pestañas y varios
+//   usuarios detrás de la misma IP: cada sesión renueva como mucho una vez cada 15 minutos.
+const refreshRateLimit = rateLimit({
+  windowMs: 15 * 60 * 1000,
+  max: 100,
+  skip: () => process.env.NODE_ENV === 'test',
+  standardHeaders: true,
+  legacyHeaders: false,
+  message: {
+    success: false,
+    error: {
+      code: 'RATE_LIMIT_EXCEEDED',
+      message: 'Demasiadas solicitudes. Intenta de nuevo en unos minutos.',
+    },
+  },
+});
+
 // ¿Qué? Health check — endpoint para verificar que el servidor está activo.
 // ¿Para qué? Permitir que herramientas de monitoreo y Docker verifiquen la salud del servicio.
 app.get('/health', (_req: Request, res: Response) => {
@@ -83,6 +105,7 @@ app.get('/health', (_req: Request, res: Response) => {
 // ¿Qué? Registrar los routers bajo el prefijo /api/v1/.
 // ¿Para qué? Versionar la API — permitir futuros cambios sin romper clientes v1.
 // ¿Impacto? El rate limit solo aplica a auth para no penalizar otras rutas.
+app.use('/api/v1/auth/refresh', refreshRateLimit);
 app.use('/api/v1/auth', authRateLimit, authRouter);
 app.use('/api/v1/users', usersRouter);
 app.use('/api/v1/staff', staffRouter);
