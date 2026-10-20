@@ -73,9 +73,32 @@ async function refreshAccessToken(): Promise<string> {
   return tokens.accessToken;
 }
 
+// ¿Qué? Ruta a la que se envía al usuario cuando su sesión ya no se puede renovar.
+// ¿Para qué? LoginPage lee `sesion=expirada` y muestra el aviso de CA-006.2.
+export const SESSION_EXPIRED_PATH = '/login?sesion=expirada';
+
+// ¿Qué? ¿El refresh falló porque el backend rechazó la sesión (y no por la red)?
+// ¿Para qué? Solo en ese caso hay que cerrar la sesión. Con un corte de red, un 429 o
+//   un 500 el refresh token puede seguir siendo válido: sacar al usuario al login por
+//   eso le hacía perder lo que estaba haciendo sin motivo.
+function isSessionRejected(err: unknown): boolean {
+  if (!axios.isAxiosError(err)) return true; // no había refresh token guardado
+  const status = err.response?.status;
+  return status === 401 || status === 403;
+}
+
+// ¿Qué? Borra los tokens y lleva al login con el aviso de sesión expirada (CA-006.2).
+function endSession(): void {
+  localStorage.removeItem('accessToken');
+  localStorage.removeItem('refreshToken');
+  if (window.location.pathname !== '/login') {
+    window.location.href = SESSION_EXPIRED_PATH;
+  }
+}
+
 // ¿Qué? Interceptor de response — ante un 401, intenta renovar la sesión UNA vez
-//   y reintenta la petición original (HU-006, CA-006.1). Si el refresh también
-//   falla, limpia la sesión para que el usuario vuelva al login.
+//   y reintenta la petición original (HU-006, CA-006.1). Si el backend rechaza el
+//   refresh token, cierra la sesión y lleva al login (CA-006.2).
 apiClient.interceptors.response.use(
   (res) => res,
   async (error: AxiosError<ApiErrorResponse>) => {
@@ -92,10 +115,12 @@ apiClient.interceptors.response.use(
         const newAccessToken = await refreshPromise;
         original.headers.Authorization = `Bearer ${newAccessToken}`;
         return apiClient(original);
-      } catch {
-        localStorage.removeItem('accessToken');
-        localStorage.removeItem('refreshToken');
-        window.location.href = '/login';
+      } catch (refreshError) {
+        if (isSessionRejected(refreshError)) {
+          endSession();
+        } else {
+          return Promise.reject(toApiError(refreshError as AxiosError<ApiErrorResponse>));
+        }
       }
     }
 
