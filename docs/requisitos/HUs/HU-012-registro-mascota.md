@@ -14,8 +14,10 @@
 | **Título**       | Registro de mascota         |
 | **Módulo**       | Mascotas                       |
 | **Prioridad**    | Alta                              |
-| **Estado**       | Por implementar                    |
+| **Estado**       | Implementada                       |
 | **RF asociados** | RF-012                              |
+| **Responsable**  | Duvan Doncel                        |
+| **Rama**         | `feature/HU-012-registro-mascota`   |
 
 ---
 
@@ -33,16 +35,19 @@
 - **Dado que** inicié sesión como staff y busco a un cliente,
 - **cuando** abro "Registrar mascota",
 - **entonces** veo campos para nombre, especie, raza, género y edad.
+- Especie y sexo se eligen de una lista (Canina/Felina, Macho/Hembra); nunca se escriben a mano.
+- Si el nombre está vacío (o solo tiene espacios), falta la especie o la edad no es un número entero de 0 a 40, veo el error debajo de ese campo.
 
 ### CA-012.2 — Cliente inexistente
 - **Dado que** intento registrar una mascota para un cliente que no existe,
 - **cuando** envío el formulario,
-- **entonces** veo un mensaje de error indicando que el cliente no fue encontrado.
+- **entonces** veo el mensaje "Cliente no encontrado." (también si el id es de una cuenta de staff).
 
 ### CA-012.3 — Registro exitoso
 - **Dado que** completé el formulario con un cliente válido,
 - **cuando** lo envío,
-- **entonces** la mascota queda registrada y visible en el listado de mascotas de ese cliente.
+- **entonces** la mascota queda registrada y visible en el listado de mascotas de ese cliente, con su especie, raza, sexo y edad.
+- El cliente también la ve en el selector de mascotas del semáforo (🟢 y 🟡).
 
 ---
 
