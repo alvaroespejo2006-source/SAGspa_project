@@ -45,8 +45,8 @@ para elegir un servicio al agendar una cita (RF-009).
 | RN-147 | Los recargos por tamaño y pelo se guardan por servicio (`PUT /api/v1/services/:id/modifiers`); las reglas por condición de piel (`amount`, `blocksBooking`) y los tramos de peso son globales (`PUT /api/v1/pricing/skin-rules`, `PUT /api/v1/pricing/size-tiers`). Todo editable solo por staff, sin tocar código. |
 | RN-148 | Si no existe un modificador para un par (servicio, tamaño) o (servicio, pelo), el recargo es 0. Un servicio puede así no variar por tamaño ni por pelo. |
 | RN-149 | Todos los recargos son ≥ 0; el precio base es > 0. |
-| RN-150 | *(nueva)* `name` tiene de 2 a 150 caracteres **después de quitar espacios**; crear y editar usan las mismas reglas y mensajes en español. |
-| RN-151 | *(nueva)* `DELETE /api/v1/services/:id` responde `message` ("Servicio eliminado." o que se desactivó por tener citas) además de `data.softDeleted`. |
+| RN-149.1 | *(nueva)* `name` tiene de 2 a 150 caracteres **después de quitar espacios**; crear y editar usan las mismas reglas y mensajes en español. |
+| RN-149.2 | *(nueva)* `DELETE /api/v1/services/:id` responde `message` ("Servicio eliminado." o que se desactivó por tener citas) además de `data.softDeleted`. |
 | RN-150 | `GET /api/v1/pricing/public` expone el tarifario completo sin autenticación, para la página "Cómo calculamos el precio". |
 | RN-151 | La talla de la mascota (`Pet.size`) se sugiere desde `Pet.weight` según la tabla `size_tiers`, pero el staff puede fijarla a mano (RF-012). El tramo mayor (`gigante`) no tiene tope de peso. |
 | RN-152 | Los tramos de peso (`size_tiers`) y los recargos por tamaño/pelo de cada servicio son **propios por especie** (`canina` / `felina`): un gato de 6 kg es "grande" pero un perro de 6 kg es "pequeño", y "gato grande" puede recargar distinto que "perro grande". Las reglas de piel y de comportamiento son globales. |
