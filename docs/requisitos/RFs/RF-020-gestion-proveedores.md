@@ -33,8 +33,10 @@ CRUD en `/api/v1/suppliers`.
 | ID     | Regla                                                                                         |
 | ------ | ------------------------------------------------------------------------------------------------ |
 | RN-200 | Solo un usuario con `role = 'staff'` puede gestionar proveedores.                                 |
-| RN-201 | El campo `name` es obligatorio.                                                                   |
-| RN-202 | Un proveedor con pedidos asociados se desactiva (`active = false`) en vez de eliminarse.           |
+| RN-201 | El campo `name` es obligatorio: de 2 a 150 caracteres **después de quitar espacios**.             |
+| RN-202 | Un proveedor con pedidos asociados se desactiva (`active = false`) en vez de eliminarse. `DELETE` responde `message` ("Proveedor eliminado." o que se desactivó). |
+| RN-203 | *(nueva)* `phone`: números, espacios, `+`, `-` y paréntesis (7 a 20). `email`: se normaliza (`trim` + minúsculas) antes de validarlo. Un campo opcional vacío al crear se guarda como `null`. |
+| RN-204 | *(nueva)* Al editar, enviar `""` en `contactName`, `phone`, `email` o `address` borra ese dato (`null`); no enviarlo lo deja igual. Los mensajes de validación están en español. |
 
 ---
 
