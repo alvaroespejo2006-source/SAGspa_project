@@ -41,10 +41,24 @@ export function Navbar() {
 
           {isAuthenticated ? (
             <>
-              <span className="hidden sm:flex items-center gap-1.5 px-3 py-1.5 text-sm text-gray-700 dark:text-slate-300">
-                <User className="h-4 w-4" aria-hidden="true" />
-                {user?.firstName}
-              </span>
+              {/* ¿Qué? Datos del usuario en la cabecera (HU-007, CA-007.1).
+                  ¿Para qué? Confirmar con qué cuenta se inició sesión. El nombre se ve en
+                  todos los tamaños (antes se ocultaba en celular); rol y correo desde sm. */}
+              <div
+                data-testid="navbar-profile"
+                title={user?.email}
+                className="flex items-center gap-1.5 px-2 sm:px-3 py-1 text-sm text-gray-700 dark:text-slate-300 min-w-0"
+              >
+                <User className="h-4 w-4 shrink-0" aria-hidden="true" />
+                <div className="flex flex-col leading-tight min-w-0">
+                  <span className="font-medium truncate max-w-[7rem] sm:max-w-[12rem]">
+                    {user?.firstName}
+                  </span>
+                  <span className="hidden sm:block text-xs text-gray-500 dark:text-slate-400 truncate max-w-[12rem]">
+                    {user?.role === 'staff' ? 'Staff' : 'Cliente'} · {user?.email}
+                  </span>
+                </div>
+              </div>
 
               <button
                 onClick={handleLogout}
