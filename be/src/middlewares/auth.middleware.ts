@@ -57,7 +57,10 @@ export function authenticate(req: Request, _res: Response, next: NextFunction): 
 export function requireRole(...roles: UserRole[]) {
   return (req: Request, _res: Response, next: NextFunction): void => {
     if (!req.user || !roles.includes(req.user.role)) {
-      next(new ForbiddenError(`Forbidden — required role: ${roles.join(' or ')}`));
+      // ¿Qué? Mensaje en español y sin nombrar el rol que falta (HU-008, CA-008.1).
+      // ¿Para qué? El frontend lo muestra tal cual; "Forbidden — required role: staff"
+      //   no le decía nada al usuario y además anunciaba qué rol abre la ruta.
+      next(new ForbiddenError('No tienes permiso para realizar esta acción.'));
       return;
     }
     next();

@@ -77,7 +77,9 @@ export const createStaffSchema = z.object({
     .min(2, 'El apellido debe tener al menos 2 caracteres.')
     .max(100)
     .regex(NAME_REGEX, 'El apellido solo puede contener letras.'),
-  email: z.string().email('El email no tiene un formato válido.').toLowerCase().trim(),
+  // ¿Qué? trim/toLowerCase antes de .email(), igual que el login (HU-002): un correo con
+  //   espacios alrededor ya no responde 422 y se guarda normalizado (evita duplicados).
+  email: z.string().trim().toLowerCase().email('El email no tiene un formato válido.'),
   password: z.string().regex(PASSWORD_REGEX, PASSWORD_MESSAGE),
 });
 
