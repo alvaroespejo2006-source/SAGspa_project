@@ -52,7 +52,9 @@ describe('Tienda — catálogo (HU-015)', () => {
     expect(toy).not.toHaveTextContent('Agotado');
     expect(shampoo).toHaveTextContent('Agotado');
     expect(shampoo).toHaveTextContent('Higiene');
-    expect(within(shampoo!).getByRole('button', { name: '+' })).toBeDisabled();
+    expect(
+      within(shampoo!).getByRole('button', { name: 'Agregar Shampoo al carrito' }),
+    ).toBeDisabled();
   });
 });
 
