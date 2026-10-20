@@ -7,7 +7,7 @@
 
 import { Router, type IRouter } from 'express';
 import { authenticate, requireRole } from '../../middlewares/auth.middleware.js';
-import { validate } from '../../middlewares/validate.middleware.js';
+import { validate, validateIdParam } from '../../middlewares/validate.middleware.js';
 import { createOrderSchema, updateOrderStatusSchema } from './orders.schema.js';
 import * as ordersController from './orders.controller.js';
 
@@ -23,6 +23,9 @@ clientRouter.post(
 clientRouter.get('/me', authenticate, requireRole('client'), ordersController.listMine);
 
 export const staffRouter: IRouter = Router();
+
+// ¿Qué? Un :id que no es UUID responde 404 en vez de 500 (HU-013).
+staffRouter.param('id', validateIdParam);
 
 staffRouter.get('/', authenticate, requireRole('staff'), ordersController.listPending);
 staffRouter.put(

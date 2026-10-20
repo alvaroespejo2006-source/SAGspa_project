@@ -7,11 +7,14 @@
 
 import { Router, type IRouter } from 'express';
 import { authenticate, requireRole } from '../../middlewares/auth.middleware.js';
-import { validate } from '../../middlewares/validate.middleware.js';
+import { validate, validateIdParam } from '../../middlewares/validate.middleware.js';
 import { createPetSchema, updatePetSchema } from './pets.schema.js';
 import * as petsController from './pets.controller.js';
 
 const router: IRouter = Router();
+
+// ¿Qué? Un :id que no es UUID responde 404 en vez de 500 (HU-013).
+router.param('id', validateIdParam);
 
 // GET /api/v1/pets/me — Mascotas del cliente autenticado (RF-013)
 router.get('/me', authenticate, requireRole('client'), petsController.listMyPets);

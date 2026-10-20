@@ -6,13 +6,16 @@
 
 import { Router, type IRouter } from 'express';
 import { authenticate, requireRole } from '../../middlewares/auth.middleware.js';
-import { validate } from '../../middlewares/validate.middleware.js';
+import { validate, validateIdParam } from '../../middlewares/validate.middleware.js';
 import { createServiceSchema, updateServiceSchema } from './services.schema.js';
 import { updateServiceModifiersSchema } from '../pricing/pricing.schema.js';
 import * as servicesController from './services.controller.js';
 import * as pricingController from '../pricing/pricing.controller.js';
 
 const router: IRouter = Router();
+
+// ¿Qué? Un :id que no es UUID responde 404 en vez de 500 (HU-013).
+router.param('id', validateIdParam);
 
 // GET /api/v1/services — catálogo público (siempre solo activos)
 router.get('/', servicesController.listPublic);

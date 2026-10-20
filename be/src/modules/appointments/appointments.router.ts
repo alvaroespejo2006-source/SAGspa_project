@@ -5,7 +5,7 @@
 
 import { Router, type IRouter } from 'express';
 import { authenticate, requireRole } from '../../middlewares/auth.middleware.js';
-import { validate } from '../../middlewares/validate.middleware.js';
+import { validate, validateIdParam } from '../../middlewares/validate.middleware.js';
 import {
   createAppointmentSchema,
   quoteAppointmentSchema,
@@ -14,6 +14,9 @@ import {
 import * as appointmentsController from './appointments.controller.js';
 
 const router: IRouter = Router();
+
+// ¿Qué? Un :id que no es UUID responde 404 en vez de 500 (HU-013).
+router.param('id', validateIdParam);
 
 // POST /api/v1/appointments/quote — estimador de precio, no crea la cita (RF-009, solo cliente)
 router.post(
