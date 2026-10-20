@@ -141,13 +141,26 @@ export async function quoteAppointment(
   return calculatePrice(serviceId, petId);
 }
 
+// ¿Qué? Cita de "Mis citas" con el nombre de la mascota y del servicio (HU-009, CA-009.6).
+// ¿Para qué? El frontend buscaba el nombre en el catálogo de servicios ACTIVOS: si el staff
+//   desactivaba un servicio, sus citas ya agendadas aparecían como "Servicio".
+export interface MyAppointmentResponse extends AppointmentResponse {
+  pet: { id: string; name: string };
+  service: { id: string; name: string };
+}
+
 // ¿Qué? Lista las citas del cliente autenticado, más recientes primero.
-export async function listMyAppointments(clientId: string): Promise<AppointmentResponse[]> {
+export async function listMyAppointments(clientId: string): Promise<MyAppointmentResponse[]> {
   const appointments = await db.appointment.findMany({
     where: { clientId },
     orderBy: [{ date: 'desc' }, { time: 'desc' }],
+    include: { pet: true, service: true },
   });
-  return appointments.map(toAppointmentResponse);
+  return appointments.map((a) => ({
+    ...toAppointmentResponse(a),
+    pet: { id: a.pet.id, name: a.pet.name },
+    service: { id: a.service.id, name: a.service.name },
+  }));
 }
 
 // ¿Qué? Forma enriquecida de una cita para la agenda del staff (RF-017) — incluye los
