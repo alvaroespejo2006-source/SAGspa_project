@@ -18,6 +18,11 @@ export interface SymptomReport {
   createdAt: string;
 }
 
+// ¿Qué? Reporte de GET /symptom-reports/me — trae el nombre de la mascota (HU-010).
+export interface MySymptomReport extends SymptomReport {
+  pet: { id: string; name: string };
+}
+
 export interface CreateSymptomReportRequest {
   petId: string;
   symptom: string;

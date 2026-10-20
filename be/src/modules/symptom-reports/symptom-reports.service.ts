@@ -62,13 +62,21 @@ export async function createSymptomReport(
   return toResponse(report);
 }
 
+// ¿Qué? Reporte de "Mis reportes" con el nombre de la mascota (HU-010, CA-010.4).
+// ¿Para qué? Que el cliente sepa de qué mascota es cada recomendación sin que el frontend
+//   tenga que cruzar la lista con sus mascotas.
+export interface MySymptomReportResponse extends SymptomReportResponse {
+  pet: { id: string; name: string };
+}
+
 // ¿Qué? Lista los reportes del cliente autenticado, más recientes primero.
-export async function listMyReports(clientId: string): Promise<SymptomReportResponse[]> {
+export async function listMyReports(clientId: string): Promise<MySymptomReportResponse[]> {
   const reports = await db.symptomReport.findMany({
     where: { clientId },
     orderBy: { createdAt: 'desc' },
+    include: { pet: true },
   });
-  return reports.map(toResponse);
+  return reports.map((r) => ({ ...toResponse(r), pet: { id: r.pet.id, name: r.pet.name } }));
 }
 
 // ¿Qué? Forma enriquecida de un reporte para la bandeja del staff (RF-018) — incluye
