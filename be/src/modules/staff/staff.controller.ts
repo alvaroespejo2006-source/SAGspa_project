@@ -27,6 +27,17 @@ export async function createStaff(
   }
 }
 
+// ¿Qué? Lista las cuentas de staff (HU-008, CA-008.4).
+// ¿Para qué? La pantalla de creación muestra el equipo actual y la cuenta recién creada.
+export async function listStaff(_req: Request, res: Response, next: NextFunction): Promise<void> {
+  try {
+    const staff = await usersService.listStaff();
+    res.status(200).json({ success: true, data: staff });
+  } catch (err) {
+    next(err);
+  }
+}
+
 const searchQuerySchema = z.string().trim().min(2, 'Escribe al menos 2 caracteres para buscar.');
 
 // ¿Qué? Busca clientes por nombre, apellido, email o documento (soporte técnico de RF-012).

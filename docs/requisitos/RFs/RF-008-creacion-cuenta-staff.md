@@ -27,7 +27,8 @@ staff del sistema se crea directamente en la base de datos (seed inicial) al des
 | 5    | Si existe, se retorna HTTP 409.                                                                  |
 | 6    | Se hashea la contraseña con bcrypt (salt rounds = 12).                                           |
 | 7    | Se inserta el nuevo usuario con `role = 'staff'`.                                                |
-| 8    | Se retorna HTTP 201 con los datos del nuevo staff creado (sin `hashedPassword`).                  |
+| 8    | Se crea el token de verificación de email y se envía el correo de activación.                   |
+| 9    | Se retorna HTTP 201 con los datos del nuevo staff creado (sin `hashedPassword`).                  |
 
 ---
 
@@ -39,6 +40,9 @@ staff del sistema se crea directamente en la base de datos (seed inicial) al des
 | RN-002 | Un cliente (`role = 'client'`) que intente llamar este endpoint recibe HTTP 403.             |
 | RN-003 | El email debe ser único en el sistema (compartido entre clientes y staff).                   |
 | RN-004 | La contraseña sigue las mismas reglas de fortaleza que en RF-001 (RN-004).                   |
+| RN-005 | *(nueva)* El correo se normaliza (`trim` + minúsculas) antes de validarlo y de buscar duplicados. |
+| RN-006 | *(nueva)* La cuenta nueva debe verificar su correo antes de iniciar sesión (igual que un cliente). |
+| RN-007 | *(nueva)* `GET /api/v1/staff` lista solo cuentas con `role = 'staff'`, sin `hashedPassword`, la más reciente primero. |
 
 ---
 
@@ -49,14 +53,29 @@ staff del sistema se crea directamente en la base de datos (seed inicial) al des
 { "firstName": "string", "lastName": "string", "email": "string", "password": "string" }
 ```
 
-**Output éxito** (HTTP 201):
+**Output éxito** (HTTP 201) — dentro de `{ "success": true, "data": { ... } }`:
 ```json
-{ "id": "uuid", "firstName": "string", "lastName": "string", "email": "string", "role": "staff", "createdAt": "timestamp" }
+{ "id": "uuid", "documentId": null, "firstName": "string", "lastName": "string", "phone": null, "email": "string", "role": "staff", "isEmailVerified": false, "createdAt": "timestamp" }
 ```
 
 **Output error 403** (quien llama no es staff):
 ```json
-{ "error": "Forbidden — staff role required" }
+{ "success": false, "error": { "code": "FORBIDDEN", "message": "No tienes permiso para realizar esta acción." } }
+```
+
+**Output error 409** (correo ya registrado):
+```json
+{ "success": false, "error": { "code": "CONFLICT", "message": "El email ya está registrado." } }
+```
+
+**Listado — `GET /api/v1/staff`** (HTTP 200):
+```json
+{
+  "success": true,
+  "data": [
+    { "id": "uuid", "firstName": "Laura", "lastName": "Gómez", "email": "laura@groomingspa.com", "isEmailVerified": false, "createdAt": "timestamp" }
+  ]
+}
 ```
 
 ---
@@ -66,3 +85,4 @@ staff del sistema se crea directamente en la base de datos (seed inicial) al des
 | Método | Ruta              | Auth requerida    | Descripción                        |
 | ------ | ----------------- | ----------------- | ------------------------------------ |
 | POST   | `/api/v1/staff`   | Sí (role: staff)  | Crea una nueva cuenta de staff       |
+| GET    | `/api/v1/staff`   | Sí (role: staff)  | Lista las cuentas de staff           |

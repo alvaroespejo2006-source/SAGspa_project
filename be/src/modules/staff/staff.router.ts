@@ -1,7 +1,7 @@
 /**
  * Archivo: modules/staff/staff.router.ts
  * Descripción: Router de Express para la gestión de cuentas de staff (RF-008).
- * ¿Para qué? Exponer POST /api/v1/staff, protegido para que solo otro staff pueda usarlo.
+ * ¿Para qué? Exponer POST y GET /api/v1/staff, protegidos para que solo otro staff pueda usarlos.
  * ¿Impacto? Sin `requireRole('staff')`, un cliente autenticado podría crear cuentas de staff.
  */
 
@@ -22,6 +22,9 @@ router.post(
   validate(createStaffSchema),
   staffController.createStaff,
 );
+
+// GET /api/v1/staff — Lista las cuentas de staff (HU-008, CA-008.4)
+router.get('/', authenticate, requireRole('staff'), staffController.listStaff);
 
 // GET /api/v1/staff/clients?q=... — Busca clientes por nombre, email o documento (RF-012)
 router.get('/clients', authenticate, requireRole('staff'), staffController.searchClients);

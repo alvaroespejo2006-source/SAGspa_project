@@ -89,3 +89,34 @@ export async function searchClients(search: string): Promise<ClientSummary[]> {
     phone: u.phone,
   }));
 }
+
+// ¿Qué? Resumen de una cuenta de staff para el listado del panel (HU-008, CA-008.4).
+// ¿Para qué? Ver quién tiene acceso al panel y si ya activó su cuenta, sin exponer el hash.
+export interface StaffSummary {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  isEmailVerified: boolean;
+  createdAt: Date;
+}
+
+// ¿Qué? Lista todas las cuentas de staff, la más reciente primero.
+// ¿Para qué? Que quien acaba de crear una cuenta la vea arriba del listado (CA-008.4).
+// ¿Impacto? Solo role: 'staff' — nunca devuelve clientes.
+export async function listStaff(): Promise<StaffSummary[]> {
+  const staff = await db.user.findMany({
+    where: { role: 'staff' },
+    orderBy: { createdAt: 'desc' },
+    select: {
+      id: true,
+      firstName: true,
+      lastName: true,
+      email: true,
+      isEmailVerified: true,
+      createdAt: true,
+    },
+  });
+
+  return staff;
+}
