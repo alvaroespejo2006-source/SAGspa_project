@@ -31,6 +31,9 @@ export async function updateService(id: string, data: UpdateServiceRequest): Pro
   return res.data.data;
 }
 
-export async function deleteService(id: string): Promise<void> {
-  await apiClient.delete(`/services/${id}`);
+// ¿Qué? Devuelve el mensaje del backend: "Servicio eliminado." o que se desactivó porque
+//   tenía citas (HU-014, CA-014.3).
+export async function deleteService(id: string): Promise<string> {
+  const res = await apiClient.delete<{ message: string }>(`/services/${id}`);
+  return res.data.message;
 }
