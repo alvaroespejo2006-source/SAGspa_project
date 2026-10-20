@@ -29,24 +29,29 @@ export function authenticate(req: Request, _res: Response, next: NextFunction): 
   const authHeader = req.headers.authorization;
 
   if (!authHeader?.startsWith('Bearer ')) {
-    next(new UnauthorizedError('Missing or invalid Authorization header'));
+    // ¿Qué? Mensajes en español: el frontend muestra error.message tal cual (HU-007).
+    next(new UnauthorizedError('Debes iniciar sesión para continuar.'));
     return;
   }
 
   const token = authHeader.slice(7); // Remover "Bearer "
 
   try {
-    const payload = jwt.verify(token, config.JWT_ACCESS_SECRET) as TokenPayload;
+    // ¿Qué? Solo se acepta HS256, el algoritmo con el que se firman los tokens.
+    // ¿Para qué? Que un token manipulado no pueda pedir otro algoritmo en su cabecera (CA-007.2).
+    const payload = jwt.verify(token, config.JWT_ACCESS_SECRET, {
+      algorithms: ['HS256'],
+    }) as TokenPayload;
 
     if (payload.type !== 'access') {
-      next(new UnauthorizedError('Invalid token type'));
+      next(new UnauthorizedError('Tu sesión no es válida. Inicia sesión de nuevo.'));
       return;
     }
 
     req.user = { id: payload.sub, email: payload.email, role: payload.role };
     next();
   } catch {
-    next(new UnauthorizedError('Invalid or expired token'));
+    next(new UnauthorizedError('Tu sesión no es válida o expiró. Inicia sesión de nuevo.'));
   }
 }
 
