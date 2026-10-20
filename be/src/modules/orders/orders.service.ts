@@ -122,12 +122,17 @@ export async function listMyOrders(clientId: string): Promise<OrderResponse[]> {
   }));
 }
 
-// ¿Qué? Lista los pedidos pendientes, para la bandeja del staff (RF-019).
-export async function listPendingOrders(): Promise<StaffOrderResponse[]> {
+// ¿Qué? Lista los pedidos de un estado, para la bandeja del staff (RF-019, HU-019).
+// ¿Para qué? La HU pide listar "por estado": además de los pendientes, el staff consulta los
+//   completados y cancelados. Pendientes del más antiguo al más nuevo (se atiende primero el
+//   que lleva más tiempo esperando); los cerrados del más reciente al más antiguo.
+export async function listOrdersByStatus(
+  status: 'pending' | 'completed' | 'cancelled' = 'pending',
+): Promise<StaffOrderResponse[]> {
   const orders = await db.order.findMany({
-    where: { status: 'pending' },
+    where: { status },
     include: { items: { include: { product: true } }, client: true },
-    orderBy: { createdAt: 'asc' },
+    orderBy: { createdAt: status === 'pending' ? 'asc' : 'desc' },
   });
 
   return orders.map((o) => ({

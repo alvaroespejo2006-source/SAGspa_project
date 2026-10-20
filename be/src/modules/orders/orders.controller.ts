@@ -4,7 +4,9 @@
  */
 
 import type { Request, Response, NextFunction } from 'express';
+import { z } from 'zod';
 import * as ordersService from './orders.service.js';
+import { ValidationError } from '../../middlewares/error.middleware.js';
 import type { CreateOrderInput, UpdateOrderStatusInput } from './orders.schema.js';
 
 export async function create(req: Request, res: Response, next: NextFunction): Promise<void> {
@@ -25,9 +27,20 @@ export async function listMine(req: Request, res: Response, next: NextFunction):
   }
 }
 
-export async function listPending(_req: Request, res: Response, next: NextFunction): Promise<void> {
+// ¿Qué? `?status=pending|completed|cancelled` — por defecto, pendientes (HU-019).
+const statusQuerySchema = z
+  .enum(['pending', 'completed', 'cancelled'], {
+    errorMap: () => ({ message: "El estado debe ser 'pending', 'completed' o 'cancelled'." }),
+  })
+  .default('pending');
+
+export async function listPending(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const orders = await ordersService.listPendingOrders();
+    const parsed = statusQuerySchema.safeParse(req.query.status);
+    if (!parsed.success) {
+      throw new ValidationError(parsed.error.errors[0]!.message);
+    }
+    const orders = await ordersService.listOrdersByStatus(parsed.data);
     res.status(200).json({ success: true, data: orders });
   } catch (err) {
     next(err);
