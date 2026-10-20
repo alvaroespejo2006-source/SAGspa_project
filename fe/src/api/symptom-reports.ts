@@ -5,15 +5,20 @@
 
 import { apiClient } from './axios';
 import type { ApiResponse } from '@/types/auth';
-import type { CreateSymptomReportRequest, PendingSymptomReport, SymptomReport } from '@/types/symptom-reports';
+import type {
+  CreateSymptomReportRequest,
+  MySymptomReport,
+  PendingSymptomReport,
+  SymptomReport,
+} from '@/types/symptom-reports';
 
 export async function createSymptomReport(data: CreateSymptomReportRequest): Promise<SymptomReport> {
   const res = await apiClient.post<ApiResponse<SymptomReport>>('/symptom-reports', data);
   return res.data.data;
 }
 
-export async function listMyReports(): Promise<SymptomReport[]> {
-  const res = await apiClient.get<ApiResponse<SymptomReport[]>>('/symptom-reports/me');
+export async function listMyReports(): Promise<MySymptomReport[]> {
+  const res = await apiClient.get<ApiResponse<MySymptomReport[]>>('/symptom-reports/me');
   return res.data.data;
 }
 
