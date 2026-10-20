@@ -31,6 +31,9 @@ export async function updateProduct(id: string, data: UpdateProductRequest): Pro
   return res.data.data;
 }
 
-export async function deleteProduct(id: string): Promise<void> {
-  await apiClient.delete(`/products/${id}`);
+// ¿Qué? Devuelve el mensaje del backend: "Producto eliminado." o que se desactivó porque
+//   tenía pedidos o ventas (HU-015).
+export async function deleteProduct(id: string): Promise<string> {
+  const res = await apiClient.delete<{ message: string }>(`/products/${id}`);
+  return res.data.message;
 }
