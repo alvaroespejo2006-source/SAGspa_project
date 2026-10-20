@@ -77,6 +77,11 @@ export interface ResetPasswordRequest {
   newPassword: string;
 }
 
+// ¿Qué? Request body para comprobar si el enlace de recuperación sigue vigente (HU-005).
+export interface ValidateResetTokenRequest {
+  token: string;
+}
+
 // ¿Qué? Request body para verificar el email con el token del enlace de activación.
 export interface VerifyEmailRequest {
   token: string;

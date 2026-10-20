@@ -30,6 +30,7 @@
 | POST | `/api/v1/auth/refresh` | No† | Renovación de tokens |
 | POST | `/api/v1/auth/change-password` | Sí | Cambio de contraseña |
 | POST | `/api/v1/auth/forgot-password` | No | Solicitar recuperación |
+| POST | `/api/v1/auth/reset-password/validate` | No | ¿El enlace de recuperación sigue vigente? |
 | POST | `/api/v1/auth/reset-password` | No | Restablecer contraseña |
 | GET | `/api/v1/users/me` | Sí | Perfil del usuario |
 | PATCH | `/api/v1/users/me/locale` | Sí | Actualizar idioma preferido |
@@ -295,7 +296,8 @@ Solicita el envío de un email de recuperación de contraseña.
 **Respuesta 200 (siempre, incluso si el email no existe):**
 ```json
 {
-  "message": "Si el email está registrado, recibirás un enlace de recuperación."
+  "success": true,
+  "message": "Si el correo está registrado, recibirás un enlace de recuperación."
 }
 ```
 
@@ -312,6 +314,27 @@ Solicita el envío de un email de recuperación de contraseña.
 - Genera un token con `crypto.randomBytes(32)` — válido 1 hora
 - Guarda el token en la tabla `password_reset_tokens`
 - Envía email con enlace: `{FRONTEND_URL}/reset-password?token={token}`
+- Los enlaces anteriores que no se usaron quedan inválidos (solo sirve el último)
+
+---
+
+### `POST /api/v1/auth/reset-password/validate`
+
+Indica si un enlace de recuperación sigue vigente, **sin consumirlo**. La página `/reset-password` lo llama al abrirse para avisar de inmediato si el enlace expiró (HU-005, CA-005.2).
+
+**No requiere autenticación.**
+
+**Body:**
+```json
+{ "token": "token-recibido-por-email" }
+```
+
+**Respuesta 200:**
+```json
+{ "success": true, "message": "El enlace de recuperación es válido." }
+```
+
+**Errores:** los mismos `400` que `reset-password` (`TOKEN_INVALID`, `TOKEN_ALREADY_USED`, `TOKEN_EXPIRED`) y `422` si falta el token.
 
 ---
 
@@ -337,14 +360,14 @@ Restablece la contraseña usando el token de recuperación.
 ```json
 {
   "success": true,
-  "message": "Contraseña restablecida correctamente. Ya puedes iniciar sesión."
+  "message": "Contraseña restablecida correctamente."
 }
 ```
 
 **Errores:**
 | Código | Descripción |
 |---|---|
-| 400 | Token inválido, expirado o ya utilizado |
+| 400 | `TOKEN_INVALID`, `TOKEN_ALREADY_USED` o `TOKEN_EXPIRED` (ver RF-005) |
 | 422 | Datos de entrada inválidos |
 | 500 | Error interno del servidor |
 

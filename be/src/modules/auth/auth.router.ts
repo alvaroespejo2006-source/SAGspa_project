@@ -16,6 +16,7 @@ import {
   changePasswordSchema,
   forgotPasswordSchema,
   resetPasswordSchema,
+  validateResetTokenSchema,
   verifyEmailSchema,
   resendVerificationSchema,
 } from './auth.schema.js';
@@ -46,6 +47,15 @@ router.post('/forgot-password', validate(forgotPasswordSchema), authController.f
 
 // POST /api/v1/auth/reset-password — Restablecer contraseña con token
 router.post('/reset-password', validate(resetPasswordSchema), authController.resetPassword);
+
+// POST /api/v1/auth/reset-password/validate — ¿el enlace de recuperación sigue vigente? (HU-005)
+// ¿Qué? POST con el token en el body, no GET con el token en la URL.
+// ¿Para qué? Que el token no quede guardado en logs de acceso ni en el historial.
+router.post(
+  '/reset-password/validate',
+  validate(validateResetTokenSchema),
+  authController.validateResetToken,
+);
 
 // POST /api/v1/auth/verify-email — Verificar email con token de activación
 // ¿Qué? Solo requiere el token del enlace — no necesita JWT (el usuario aún no puede loguearse).

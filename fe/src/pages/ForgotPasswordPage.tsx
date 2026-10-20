@@ -10,32 +10,46 @@ import * as authApi from '@/api/auth';
 import { Button } from '@/components/ui/Button';
 import { InputField } from '@/components/ui/InputField';
 import { Alert } from '@/components/ui/Alert';
+import { ApiError } from '@/api/axios';
+
+const EMAIL_REGEX = /^[^\s@]+@[^\s@]+\.[^\s@]+$/;
 
 export function ForgotPasswordPage() {
   const [email, setEmail] = useState('');
   const [emailError, setEmailError] = useState<string | undefined>();
+  const [serverError, setServerError] = useState<string | null>(null);
   const [submitted, setSubmitted] = useState(false);
   const [isLoading, setIsLoading] = useState(false);
 
   const handleChange = (e: React.ChangeEvent<HTMLInputElement>) => {
     setEmail(e.target.value);
     setEmailError(undefined);
+    setServerError(null);
   };
 
   const handleSubmit = async (e: React.FormEvent) => {
     e.preventDefault();
 
-    if (!email.includes('@')) {
-      setEmailError('El correo no es válido.');
+    // ¿Qué? Misma regla de correo que el registro y el login; antes bastaba con tener una '@'.
+    if (!EMAIL_REGEX.test(email.trim())) {
+      setEmailError('Ingresa un correo válido, por ejemplo: nombre@dominio.com');
       return;
     }
 
     setIsLoading(true);
+    setServerError(null);
     try {
-      await authApi.forgotPassword({ email });
+      await authApi.forgotPassword({ email: email.trim() });
       setSubmitted(true);
-    } catch {
-      setSubmitted(true);
+    } catch (err) {
+      // ¿Qué? Solo el límite de intentos (429) se muestra como error.
+      // ¿Para qué? Antes cualquier fallo mostraba "recibirás un enlace" aunque no se enviara
+      //   nada. Los demás errores siguen mostrando el mensaje genérico (RN-050).
+      if (err instanceof ApiError && err.status === 429) {
+        setServerError(err.message);
+      } else {
+        setSubmitted(true);
+      }
     } finally {
       setIsLoading(false);
     }
@@ -47,7 +61,7 @@ export function ForgotPasswordPage() {
         <div className="w-full max-w-sm">
           <Alert
             type="success"
-            message="Si el correo está registrado, recibirás un enlace de recuperación en breve."
+            message="Si el correo está registrado, recibirás un enlace de recuperación."
           />
           <div className="mt-4 flex justify-end">
             <Link to="/login" className="text-sm text-brand-600 dark:text-brand-400 hover:underline">
@@ -72,6 +86,8 @@ export function ForgotPasswordPage() {
         </div>
 
         <form onSubmit={handleSubmit} noValidate className="space-y-4">
+          {serverError && <Alert type="error" message={serverError} />}
+
           <InputField
             id="email"
             name="email"

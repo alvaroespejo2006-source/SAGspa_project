@@ -40,6 +40,7 @@ import type {
   ChangePasswordInput,
   ForgotPasswordInput,
   ResetPasswordInput,
+  ValidateResetTokenInput,
   VerifyEmailInput,
   ResendVerificationInput,
 } from './auth.schema.js';
@@ -308,33 +309,66 @@ export async function requestPasswordReset(data: ForgotPasswordInput): Promise<v
   // ¿Qué? Expira en 1 hora.
   const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
 
-  await db.passwordResetToken.create({
-    data: {
-      userId: user.id,
-      token: resetToken,
-      expiresAt,
-    },
-  });
+  // ¿Qué? Invalida los enlaces anteriores que sigan pendientes y crea el nuevo, juntos.
+  // ¿Para qué? Si el usuario pide el correo varias veces, solo el último enlace sirve
+  //   (mismo criterio que el reenvío de verificación en HU-003).
+  await db.$transaction([
+    db.passwordResetToken.updateMany({
+      where: { userId: user.id, used: false },
+      data: { used: true },
+    }),
+    db.passwordResetToken.create({
+      data: {
+        userId: user.id,
+        token: resetToken,
+        expiresAt,
+      },
+    }),
+  ]);
 
   await sendPasswordResetEmail(user.email, resetToken);
   logPasswordResetRequested();
 }
 
-// ¿Qué? Valida el token de reset y actualiza la contraseña del usuario.
-// ¿Para qué? Completar el flujo de recuperación con verificación segura del token.
-// ¿Impacto? El token debe ser único, no expirado y no usado — cualquier fallo es 400.
-export async function resetUserPassword(data: ResetPasswordInput): Promise<void> {
-  const tokenRecord = await db.passwordResetToken.findFirst({
-    where: {
-      token: data.token,
-      used: false,
-      expiresAt: { gt: new Date() },
-    },
-  });
+// ¿Qué? Busca un token de recuperación y lanza un error distinto por cada caso de fallo.
+// ¿Para qué? CA-005.2 pide decir que el enlace expiró; con un solo mensaje para todo
+//   ("inválido o ha expirado") el usuario no sabía que basta con pedir otro.
+// ¿Impacto? Se revisa `used` antes que `expiresAt`, igual que en verifyEmail (HU-003).
+async function findValidResetToken(token: string) {
+  const tokenRecord = await db.passwordResetToken.findFirst({ where: { token } });
 
   if (!tokenRecord) {
-    throw new BadRequestError('El token es inválido o ha expirado.');
+    throw new BadRequestError('El enlace de recuperación no es válido.', 'TOKEN_INVALID');
   }
+  if (tokenRecord.used) {
+    throw new BadRequestError(
+      'Este enlace ya fue utilizado. Solicita uno nuevo si aún necesitas cambiar tu contraseña.',
+      'TOKEN_ALREADY_USED',
+    );
+  }
+  if (tokenRecord.expiresAt <= new Date()) {
+    throw new BadRequestError(
+      'El enlace de recuperación expiró. Solicita uno nuevo.',
+      'TOKEN_EXPIRED',
+    );
+  }
+
+  return tokenRecord;
+}
+
+// ¿Qué? Comprueba si un enlace de recuperación todavía sirve, sin cambiar nada.
+// ¿Para qué? CA-005.2 dice que el aviso de "expiró" se ve al hacer clic en el enlace,
+//   no después de escribir la nueva contraseña. La página lo consulta al abrirse.
+export async function validateResetToken(data: ValidateResetTokenInput): Promise<void> {
+  await findValidResetToken(data.token);
+}
+
+// ¿Qué? Valida el token de reset y actualiza la contraseña del usuario.
+// ¿Para qué? Completar el flujo de recuperación con verificación segura del token.
+// ¿Impacto? El token debe existir, no estar usado y no haber expirado — cada caso es un 400
+//   con su propio código (TOKEN_INVALID, TOKEN_ALREADY_USED, TOKEN_EXPIRED).
+export async function resetUserPassword(data: ResetPasswordInput): Promise<void> {
+  const tokenRecord = await findValidResetToken(data.token);
 
   const hashed = await hashPassword(data.newPassword);
 
