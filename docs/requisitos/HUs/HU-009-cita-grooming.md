@@ -14,8 +14,10 @@
 | **Título**       | Agendar cita de grooming        |
 | **Módulo**       | Semáforo                          |
 | **Prioridad**    | Alta                                |
-| **Estado**       | Por implementar                      |
+| **Estado**       | Implementada                         |
 | **RF asociados** | RF-009                                |
+| **Responsable**  | Alvaro Espejo                         |
+| **Rama**         | `feature/HU-009-cita-grooming`        |
 
 ---
 
@@ -43,11 +45,14 @@
 - **Dado que** todavía no tengo ninguna mascota registrada a mi nombre,
 - **cuando** elijo la opción 🟢 o 🟡,
 - **entonces** veo un mensaje indicando que debo acercarme o comunicarme con GroomingSpa para que registren a mi mascota antes de poder agendar.
+- El aviso también aparece si entro a `/app/cita` escribiendo la URL, y en ese caso no se muestra el formulario.
+- Si las mascotas no se pudieron cargar (por ejemplo, sin conexión), veo el error y **no** el aviso de "no tienes mascotas".
 
 ### CA-009.3 — Fecha mínima
 - **Dado que** estoy llenando el formulario,
 - **cuando** elijo hoy o una fecha pasada,
 - **entonces** veo el mensaje: "La cita debe ser a partir de mañana".
+- "Mañana" se cuenta con la hora de Colombia (`BUSINESS_TIMEZONE`, por defecto `America/Bogota`), no con UTC.
 
 ### CA-009.4 — Horario de atención
 - **Dado que** estoy llenando el formulario,
@@ -57,12 +62,13 @@
 ### CA-009.5 — Confirmación de envío
 - **Dado que** completé el formulario correctamente,
 - **cuando** lo envío,
-- **entonces** veo un mensaje de éxito indicando que mi cita quedó "pendiente" y que me contactarán para confirmarla.
+- **entonces** veo el mensaje: "¡Cita agendada! Quedó en estado pendiente y te contactaremos para confirmarla."
 
 ### CA-009.6 — Consultar mis citas
 - **Dado que** ya agendé una o más citas,
 - **cuando** entro a "Mis citas",
 - **entonces** veo la lista con el estado de cada una (pendiente, confirmada, atendida, cancelada).
+- Cada cita muestra el nombre de la mascota y del servicio, aunque ese servicio ya no esté activo en el catálogo.
 
 ---
 
