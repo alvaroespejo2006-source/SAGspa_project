@@ -37,8 +37,11 @@ mediante endpoints en `/api/v1/supplier-orders`.
 | RN-210 | Solo un usuario con `role = 'staff'` puede crear o recibir pedidos a proveedor.                   |
 | RN-211 | Todo pedido a proveedor se crea con `status = 'ordered'`.                                          |
 | RN-212 | El `stock` de los productos solo se incrementa cuando el pedido pasa a `status = 'received'` — nunca al crearse. |
-| RN-213 | Un pedido `received` no puede volver a `ordered` (evita duplicar el incremento de stock).           |
+| RN-213 | Un pedido `received` no puede volver a recibirse: 400 `SUPPLIER_ORDER_ALREADY_RECEIVED`. El cambio a `received` es un `UPDATE` condicional (`status = 'ordered'`) hecho **antes** de sumar el stock: con recepciones simultáneas, el stock se suma una sola vez (antes se sumaba varias). |
 | RN-214 | El costo unitario (`unitCost`) se guarda por línea, para poder calcular costos de inventario a futuro. |
+| RN-215 | *(nueva)* No se puede crear un pedido a un proveedor desactivado (400 `SUPPLIER_INACTIVE`). |
+| RN-216 | *(nueva)* Las líneas repetidas del mismo producto se suman. Cantidad: entero de 1 a 10.000; costo: mayor a 0 y hasta 99.999.999; máximo 50 productos distintos. |
+| RN-217 | *(nueva)* Sin `receivedDate`, se usa hoy en la zona horaria del negocio (`BUSINESS_TIMEZONE`). |
 
 ---
 
