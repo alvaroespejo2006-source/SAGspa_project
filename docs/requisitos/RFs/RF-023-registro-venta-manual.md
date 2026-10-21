@@ -39,9 +39,11 @@ una venta manual se crea directamente como pagada y completada — no tiene esta
 | RN-230 | Solo un usuario con `role = 'staff'` puede registrar una venta manual.                            |
 | RN-231 | Una venta manual no requiere que el comprador tenga cuenta en el sistema — `clientId` es opcional; si no hay cuenta, se guarda `clientName` como texto libre. |
 | RN-232 | El precio de cada línea se toma del catálogo — nunca se ingresa manualmente.                       |
-| RN-233 | El `stock` se descuenta de inmediato al registrar la venta (no hay estado intermedio "reservado"). |
+| RN-233 | El `stock` se descuenta de inmediato al registrar la venta (no hay estado intermedio "reservado"), con un `UPDATE` **condicional y atómico** (`stock >= cantidad`), igual que los pedidos de la app (RN-163). Antes se leía y luego se descontaba, y con ventas simultáneas el stock quedaba negativo. |
 | RN-234 | Toda venta manual se crea ya como `status = 'completed'` y `paymentStatus = 'paid'`.               |
 | RN-235 | Las ventas manuales se incluyen en el reporte de ventas junto con los pedidos completados (RF-022). |
+| RN-236 | *(nueva)* Las líneas repetidas se suman; máximo 99 unidades por producto y 50 productos distintos. Sin stock suficiente → 409 `OUT_OF_STOCK` con el nombre del producto; producto inactivo → 404 `PRODUCT_UNAVAILABLE`. |
+| RN-237 | *(nueva)* Un `clientName` vacío o de espacios se guarda como `null`. |
 
 ---
 

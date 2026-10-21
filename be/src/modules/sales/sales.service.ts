@@ -28,6 +28,12 @@ export async function createSale(
   registeredById: string,
   data: CreateSaleInput,
 ): Promise<SaleResponse> {
+  // ¿Qué? Junta las líneas repetidas del mismo producto (2 + 1 → 3), como en HU-016.
+  const quantities = new Map<string, number>();
+  for (const item of data.items) {
+    quantities.set(item.productId, (quantities.get(item.productId) ?? 0) + item.quantity);
+  }
+
   return db.$transaction(async (tx) => {
     if (data.clientId) {
       const client = await tx.user.findUnique({ where: { id: data.clientId } });
@@ -39,23 +45,38 @@ export async function createSale(
     let total = 0;
     const lineItems: { productId: string; name: string; quantity: number; unitPrice: number }[] = [];
 
-    for (const item of data.items) {
-      const product = await tx.product.findUnique({ where: { id: item.productId } });
+    for (const [productId, quantity] of quantities) {
+      const product = await tx.product.findUnique({ where: { id: productId } });
+      // ¿Qué? El mensaje nombra el producto (antes mostraba su UUID).
       if (!product || !product.active) {
-        throw new NotFoundError(`Producto no encontrado: ${item.productId}`);
+        throw new NotFoundError(
+          product
+            ? `"${product.name}" ya no está disponible para la venta.`
+            : 'Uno de los productos de la venta ya no existe.',
+          'PRODUCT_UNAVAILABLE',
+        );
       }
-      if (product.stock < item.quantity) {
-        throw new ConflictError(`Stock insuficiente para el producto: ${product.name}`);
+
+      // ¿Qué? Descuento CONDICIONAL y atómico (CA-023.3), igual que los pedidos de la app (HU-016).
+      // ¿Para qué? Antes se leía el stock y luego se descontaba: una venta de mostrador y un
+      //   pedido de la app (o dos ventas) al mismo tiempo podían dejar el stock negativo.
+      const reserved = await tx.product.updateMany({
+        where: { id: productId, stock: { gte: quantity } },
+        data: { stock: { decrement: quantity } },
+      });
+      if (reserved.count === 0) {
+        const left = (await tx.product.findUnique({ where: { id: productId } }))?.stock ?? 0;
+        throw new ConflictError(
+          left === 0
+            ? `No hay existencias de "${product.name}".`
+            : `Solo quedan ${left} unidades de "${product.name}".`,
+          'OUT_OF_STOCK',
+        );
       }
 
       const unitPrice = Number(product.price);
-      total += unitPrice * item.quantity;
-      lineItems.push({ productId: product.id, name: product.name, quantity: item.quantity, unitPrice });
-
-      await tx.product.update({
-        where: { id: product.id },
-        data: { stock: { decrement: item.quantity } },
-      });
+      total += unitPrice * quantity;
+      lineItems.push({ productId: product.id, name: product.name, quantity, unitPrice });
     }
 
     const sale = await tx.sale.create({
