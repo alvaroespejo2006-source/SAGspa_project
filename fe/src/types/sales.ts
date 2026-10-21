@@ -39,5 +39,8 @@ export interface SalesReport {
   to: string;
   totalRevenue: number;
   totalOrders: number;
+  // ¿Qué? Pedidos de la app y ventas de mostrador incluidos en el total (HU-022, CA-022.3).
+  appOrders: number;
+  counterSales: number;
   byProduct: SalesReportByProduct[];
 }
