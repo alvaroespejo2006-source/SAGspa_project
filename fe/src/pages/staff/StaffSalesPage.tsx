@@ -12,6 +12,7 @@ import { Link } from 'react-router-dom';
 import * as productsApi from '@/api/products';
 import * as staffApi from '@/api/staff';
 import * as salesApi from '@/api/sales';
+import { ApiError } from '@/api/axios';
 import type { Product } from '@/types/products';
 import type { ClientSummary } from '@/types/staff';
 import { Button } from '@/components/ui/Button';
@@ -29,14 +30,24 @@ export function StaffSalesPage() {
   const [isSearching, setIsSearching] = useState(false);
 
   const [error, setError] = useState<string | null>(null);
-  const [success, setSuccess] = useState(false);
+  const [success, setSuccess] = useState<string | null>(null);
+  // ¿Qué? Aviso de la búsqueda de cliente ("escribe al menos 2…", "no se encontró…").
+  const [searchMessage, setSearchMessage] = useState<string | null>(null);
   const [isSubmitting, setIsSubmitting] = useState(false);
 
+  const loadProducts = () => productsApi.listProducts().then(setProducts);
+
   useEffect(() => {
-    productsApi.listProducts().then(setProducts);
+    productsApi
+      .listProducts()
+      .then(setProducts)
+      .catch((err: unknown) =>
+        setError(err instanceof Error ? err.message : 'No se pudieron cargar los productos.'),
+      );
   }, []);
 
   const setQuantity = (productId: string, quantity: number) => {
+    setSuccess(null);
     setCart((prev) => {
       const next = { ...prev };
       if (quantity <= 0) delete next[productId];
@@ -56,10 +67,19 @@ export function StaffSalesPage() {
 
   const handleSearch = async (e: React.FormEvent) => {
     e.preventDefault();
-    if (query.trim().length < 2) return;
+    setSearchMessage(null);
+    // ¿Qué? Antes, con menos de 2 letras, el botón no hacía nada y no decía por qué.
+    if (query.trim().length < 2) {
+      setSearchMessage('Escribe al menos 2 caracteres para buscar.');
+      return;
+    }
     setIsSearching(true);
     try {
-      setResults(await staffApi.searchClients(query.trim()));
+      const found = await staffApi.searchClients(query.trim());
+      setResults(found);
+      if (found.length === 0) {
+        setSearchMessage('No se encontró ningún cliente. Puedes registrar la venta sin cuenta.');
+      }
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo buscar el cliente.');
     } finally {
@@ -74,22 +94,37 @@ export function StaffSalesPage() {
     }
     setIsSubmitting(true);
     setError(null);
-    setSuccess(false);
+    setSuccess(null);
+    const buyer = selectedClient
+      ? `${selectedClient.firstName} ${selectedClient.lastName}`
+      : clientName.trim();
     try {
-      await salesApi.createSale({
+      const sale = await salesApi.createSale({
         items: cartItems.map((item) => ({ productId: item.product.id, quantity: item.quantity })),
         clientId: selectedClient?.id,
         clientName: !selectedClient && clientName.trim() ? clientName.trim() : undefined,
       });
-      setSuccess(true);
+      // ¿Qué? CA-023.1 / CA-023.2 — total, a nombre de quién y que el stock ya se descontó.
+      setSuccess(
+        `Venta registrada por $${sale.total.toLocaleString('es-CO')}${
+          buyer ? ` a nombre de ${buyer}` : ''
+        }. El stock ya se descontó.`,
+      );
       setCart({});
       setSelectedClient(null);
       setClientName('');
       setResults([]);
       setQuery('');
-      productsApi.listProducts().then(setProducts);
+      loadProducts().catch(() => undefined);
     } catch (err) {
       setError(err instanceof Error ? err.message : 'No se pudo registrar la venta.');
+      // ¿Qué? CA-023.3 — si un producto no alcanza, se recarga el stock; la venta NO se pierde.
+      if (
+        err instanceof ApiError &&
+        (err.code === 'OUT_OF_STOCK' || err.code === 'PRODUCT_UNAVAILABLE')
+      ) {
+        loadProducts().catch(() => undefined);
+      }
     } finally {
       setIsSubmitting(false);
     }
@@ -107,7 +142,7 @@ export function StaffSalesPage() {
 
       {success && (
         <div className="mb-4">
-          <Alert type="success" message="Venta registrada correctamente." />
+          <Alert type="success" message={success} />
         </div>
       )}
       {error && (
@@ -116,13 +151,21 @@ export function StaffSalesPage() {
         </div>
       )}
 
-      <h2 className="text-lg font-semibold text-gray-900 dark:text-slate-100 mb-3">Comprador (opcional)</h2>
+      <h2 className="text-lg font-semibold text-gray-900 dark:text-slate-100 mb-3">
+        Comprador (opcional)
+      </h2>
       {selectedClient ? (
         <div className="mb-6 flex items-center justify-between rounded-lg border border-gray-200 dark:border-slate-700 px-4 py-3 text-sm">
           <span>
-            <strong className="text-gray-900 dark:text-slate-100">{selectedClient.firstName} {selectedClient.lastName}</strong> — {selectedClient.email}
+            <strong className="text-gray-900 dark:text-slate-100">
+              {selectedClient.firstName} {selectedClient.lastName}
+            </strong>{' '}
+            — {selectedClient.email}
           </span>
-          <button onClick={() => setSelectedClient(null)} className="text-brand-600 dark:text-brand-400 hover:underline">
+          <button
+            onClick={() => setSelectedClient(null)}
+            className="text-brand-600 dark:text-brand-400 hover:underline"
+          >
             Quitar
           </button>
         </div>
@@ -140,15 +183,23 @@ export function StaffSalesPage() {
               />
             </div>
             <div className="pt-7">
-              <Button type="submit" isLoading={isSearching}>Buscar</Button>
+              <Button type="submit" isLoading={isSearching}>
+                Buscar
+              </Button>
             </div>
           </form>
+          {searchMessage && (
+            <p className="text-sm text-gray-500 dark:text-slate-400">{searchMessage}</p>
+          )}
           {results.length > 0 && (
-            <ul className="space-y-2">
+            <ul className="space-y-2" aria-label="Clientes encontrados">
               {results.map((c) => (
                 <li key={c.id}>
                   <button
-                    onClick={() => { setSelectedClient(c); setResults([]); }}
+                    onClick={() => {
+                      setSelectedClient(c);
+                      setResults([]);
+                    }}
                     className="w-full text-left rounded-lg border border-gray-200 dark:border-slate-700 px-4 py-3 text-sm hover:border-brand-400 dark:hover:border-brand-500"
                   >
                     {c.firstName} {c.lastName} — {c.email}
@@ -170,9 +221,11 @@ export function StaffSalesPage() {
 
       <h2 className="text-lg font-semibold text-gray-900 dark:text-slate-100 mb-3">Productos</h2>
       {products.length === 0 ? (
-        <p className="text-sm text-gray-500 dark:text-slate-400 mb-6">No hay productos disponibles.</p>
+        <p className="text-sm text-gray-500 dark:text-slate-400 mb-6">
+          No hay productos disponibles.
+        </p>
       ) : (
-        <ul className="space-y-2 mb-6">
+        <ul className="space-y-2 mb-6" aria-label="Productos">
           {products.map((p) => (
             <li
               key={p.id}
@@ -181,8 +234,14 @@ export function StaffSalesPage() {
               <div>
                 <p className="font-medium text-gray-900 dark:text-slate-100">{p.name}</p>
                 <p className="text-gray-500 dark:text-slate-400">
-                  ${p.price.toLocaleString('es-CO')} — {p.stock} disponibles
+                  ${p.price.toLocaleString('es-CO')} —{' '}
+                  {p.stock > 0 ? `${p.stock} disponibles` : 'Agotado'}
                 </p>
+                {(cart[p.id] ?? 0) > p.stock && (
+                  <p className="text-xs text-red-600 dark:text-red-400">
+                    Solo quedan {p.stock}: baja la cantidad.
+                  </p>
+                )}
               </div>
               <div className="flex items-center gap-2">
                 <Button
@@ -190,6 +249,7 @@ export function StaffSalesPage() {
                   className="text-xs px-2 py-1"
                   disabled={!cart[p.id]}
                   onClick={() => setQuantity(p.id, (cart[p.id] ?? 0) - 1)}
+                  aria-label={`Quitar una unidad de ${p.name}`}
                 >
                   −
                 </Button>
@@ -197,8 +257,9 @@ export function StaffSalesPage() {
                 <Button
                   variant="secondary"
                   className="text-xs px-2 py-1"
-                  disabled={(cart[p.id] ?? 0) >= p.stock}
+                  disabled={(cart[p.id] ?? 0) >= Math.min(p.stock, 99)}
                   onClick={() => setQuantity(p.id, (cart[p.id] ?? 0) + 1)}
+                  aria-label={`Agregar una unidad de ${p.name}`}
                 >
                   +
                 </Button>
@@ -210,8 +271,12 @@ export function StaffSalesPage() {
 
       {cartItems.length > 0 && (
         <div className="rounded-lg border border-gray-200 dark:border-slate-700 px-4 py-3">
-          <p className="font-medium text-gray-900 dark:text-slate-100 mb-2">Total: ${total.toLocaleString('es-CO')}</p>
-          <Button isLoading={isSubmitting} onClick={handleSubmit}>Registrar venta</Button>
+          <p className="font-medium text-gray-900 dark:text-slate-100 mb-2">
+            Total: ${total.toLocaleString('es-CO')}
+          </p>
+          <Button isLoading={isSubmitting} onClick={handleSubmit}>
+            Registrar venta
+          </Button>
         </div>
       )}
     </div>
