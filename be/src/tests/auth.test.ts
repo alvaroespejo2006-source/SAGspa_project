@@ -212,15 +212,16 @@ describe('POST /api/v1/auth/change-password', () => {
     expect(res.body.success).toBe(true);
   });
 
-  // ¿Qué? Contraseña actual incorrecta.
-  it('should return 401 when current password is wrong', async () => {
+  // ¿Qué? Contraseña actual incorrecta — 400 (no 401) para no confundirla con sesión expirada.
+  it('should return 400 when current password is wrong', async () => {
     const { accessToken } = await loginTestUser();
     const res = await request(app)
       .post('/api/v1/auth/change-password')
       .set('Authorization', `Bearer ${accessToken}`)
       .send({ currentPassword: 'WrongCurrent1', newPassword: 'NewPassword99' });
 
-    expect(res.status).toBe(401);
+    expect(res.status).toBe(400);
+    expect(res.body.error.code).toBe('INVALID_CURRENT_PASSWORD');
   });
 
   // ¿Qué? Sin token de autorización — debe retornar 401.

@@ -12,13 +12,16 @@ import type {
   UpdateAppointmentStatusInput,
 } from './appointments.schema.js';
 import { ValidationError } from '../../middlewares/error.middleware.js';
+import { todayInBusinessTimezone } from '../../utils/dates.js';
 
 const dateQuerySchema = z.string().regex(/^\d{4}-\d{2}-\d{2}$/, 'La fecha debe tener el formato AAAA-MM-DD.');
 
 // ¿Qué? Calendario del día para el staff (RF-017). `?date=` es opcional — por defecto, hoy.
+// ¿Impacto? "Hoy" es la fecha de Colombia (HU-017): con toISOString() se usaba UTC y, desde
+//   las 7:00 p.m., la agenda "de hoy" mostraba las citas de mañana.
 export async function agenda(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
-    const raw = (req.query.date as string) ?? new Date().toISOString().slice(0, 10);
+    const raw = (req.query.date as string) ?? todayInBusinessTimezone();
     const parsed = dateQuerySchema.safeParse(raw);
     if (!parsed.success) {
       throw new ValidationError(parsed.error.errors[0]!.message);

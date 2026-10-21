@@ -53,7 +53,16 @@ export async function update(req: Request, res: Response, next: NextFunction): P
 export async function remove(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const result = await servicesService.deleteService(req.params.id as string);
-    res.status(200).json({ success: true, data: result });
+    // ¿Qué? Mensaje que explica qué pasó (CA-014.3).
+    // ¿Para qué? El staff pulsaba "Eliminar" y, si el servicio tenía citas, solo veía que
+    //   seguía en la lista (ahora inactivo), sin saber por qué no se había borrado.
+    res.status(200).json({
+      success: true,
+      message: result.softDeleted
+        ? 'El servicio tiene citas asociadas, así que se desactivó en lugar de eliminarse.'
+        : 'Servicio eliminado.',
+      data: result,
+    });
   } catch (err) {
     next(err);
   }

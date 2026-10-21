@@ -14,7 +14,9 @@
 | **Título**       | Gestionar proveedores    |
 | **Módulo**       | Inventario y Proveedores    |
 | **Prioridad**    | Media                          |
-| **Estado**       | Por implementar                  |
+| **Estado**       | Implementada                     |
+| **Responsable**  | Duvan Doncel                     |
+| **Rama**         | `feature/HU-020-gestion-proveedores` |
 | **RF asociados** | RF-020                            |
 
 ---
@@ -33,16 +35,19 @@
 - **Dado que** inicié sesión como staff,
 - **cuando** completo el formulario de nuevo proveedor y lo envío,
 - **entonces** el proveedor aparece en el listado.
+- El nombre es obligatorio (al menos 2 caracteres, sin contar espacios); el teléfono solo admite números, espacios, `+`, `-` y paréntesis, y el correo se guarda en minúsculas.
 
 ### CA-020.2 — Editar proveedor
 - **Dado que** un proveedor ya existe,
 - **cuando** edito sus datos de contacto,
 - **entonces** los cambios se reflejan de inmediato.
+- El botón "Editar" de cada proveedor carga sus datos en el formulario; si dejo vacío un dato de contacto (por ejemplo el correo), ese dato se borra.
 
 ### CA-020.3 — Desactivar proveedor con pedidos
 - **Dado que** un proveedor tiene pedidos asociados,
 - **cuando** intento eliminarlo,
-- **entonces** el sistema lo desactiva en vez de borrarlo.
+- **entonces** el sistema lo desactiva en vez de borrarlo y me lo explica: "El proveedor tiene pedidos asociados, así que se desactivó en lugar de eliminarse."
+- Antes de eliminar, la pantalla pide confirmación.
 
 ---
 

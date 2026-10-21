@@ -52,7 +52,14 @@ export async function update(req: Request, res: Response, next: NextFunction): P
 export async function remove(req: Request, res: Response, next: NextFunction): Promise<void> {
   try {
     const result = await productsService.deleteProduct(req.params.id as string);
-    res.status(200).json({ success: true, data: result });
+    // ¿Qué? Mensaje que explica qué pasó (HU-015, igual que servicios en HU-014).
+    res.status(200).json({
+      success: true,
+      message: result.softDeleted
+        ? 'El producto tiene pedidos o ventas asociadas, así que se desactivó en lugar de eliminarse.'
+        : 'Producto eliminado.',
+      data: result,
+    });
   } catch (err) {
     next(err);
   }

@@ -15,7 +15,9 @@ import type {
   ChangePasswordInput,
   ForgotPasswordInput,
   ResetPasswordInput,
+  ValidateResetTokenInput,
   VerifyEmailInput,
+  ResendVerificationInput,
 } from './auth.schema.js';
 
 // ¿Qué? Registra un nuevo cliente.
@@ -64,8 +66,13 @@ export async function changePassword(
   next: NextFunction,
 ): Promise<void> {
   try {
-    await authService.changeUserPassword(req.user!.id, req.body as ChangePasswordInput);
-    res.status(200).json({ success: true, message: 'Contraseña actualizada correctamente.' });
+    // ¿Qué? Devuelve tokens nuevos: los refresh tokens anteriores dejan de servir (HU-004).
+    const tokens = await authService.changeUserPassword(req.user!.id, req.body as ChangePasswordInput);
+    res.status(200).json({
+      success: true,
+      message: 'Contraseña actualizada correctamente.',
+      data: tokens,
+    });
   } catch (err) {
     next(err);
   }
@@ -82,7 +89,8 @@ export async function forgotPassword(
     await authService.requestPasswordReset(req.body as ForgotPasswordInput);
     res.status(200).json({
       success: true,
-      message: 'Si el email existe recibirás un enlace de recuperación en breve.',
+      // ¿Qué? Mismo texto que CA-005.1 — se muestra exista o no el correo (RN-050).
+      message: 'Si el correo está registrado, recibirás un enlace de recuperación.',
     });
   } catch (err) {
     next(err);
@@ -103,6 +111,21 @@ export async function resetPassword(
   }
 }
 
+// ¿Qué? Indica si el enlace de recuperación sigue vigente (HU-005, CA-005.2).
+// ¿Para qué? Que la página avise "el enlace expiró" apenas se abre.
+export async function validateResetToken(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    await authService.validateResetToken(req.body as ValidateResetTokenInput);
+    res.status(200).json({ success: true, message: 'El enlace de recuperación es válido.' });
+  } catch (err) {
+    next(err);
+  }
+}
+
 // ¿Qué? Verifica el email del usuario usando el token del enlace de activación.
 // ¿Para qué? Completar el flujo de registro: activar la cuenta para permitir el login.
 // ¿Impacto? Hasta que este endpoint sea llamado con un token válido, el login retorna 403.
@@ -116,6 +139,25 @@ export async function verifyEmail(
     res.status(200).json({
       success: true,
       message: 'Email verificado correctamente. Ya puedes iniciar sesión.',
+    });
+  } catch (err) {
+    next(err);
+  }
+}
+
+// ¿Qué? Reenvía el email de verificación (HU-003, CA-003.2).
+// ¿Para qué? Siempre responde 200 con el mismo mensaje para no revelar si el email existe
+//   o si la cuenta ya estaba verificada.
+export async function resendVerification(
+  req: Request,
+  res: Response,
+  next: NextFunction,
+): Promise<void> {
+  try {
+    await authService.resendVerificationEmail(req.body as ResendVerificationInput);
+    res.status(200).json({
+      success: true,
+      message: 'Si tu cuenta está pendiente de verificación, te enviamos un nuevo enlace a tu correo.',
     });
   } catch (err) {
     next(err);

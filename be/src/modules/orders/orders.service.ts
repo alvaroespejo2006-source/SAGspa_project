@@ -31,29 +31,53 @@ export interface StaffOrderResponse extends OrderResponse {
 // ¿Para qué? Valida stock, calcula el total en el servidor y reserva (descuenta) el
 //   stock de cada producto dentro de una única transacción — o todo se aplica, o nada.
 export async function createOrder(clientId: string, data: CreateOrderInput): Promise<OrderResponse> {
+  // ¿Qué? Junta las líneas repetidas del mismo producto en una sola (2 + 1 → 3).
+  // ¿Para qué? Validar el stock contra la cantidad TOTAL pedida de cada producto.
+  const quantities = new Map<string, number>();
+  for (const item of data.items) {
+    quantities.set(item.productId, (quantities.get(item.productId) ?? 0) + item.quantity);
+  }
+
   return db.$transaction(async (tx) => {
     let total = 0;
     const lineItems: { productId: string; name: string; quantity: number; unitPrice: number }[] = [];
 
-    for (const item of data.items) {
-      const product = await tx.product.findUnique({ where: { id: item.productId } });
+    for (const [productId, quantity] of quantities) {
+      const product = await tx.product.findUnique({ where: { id: productId } });
 
+      // ¿Qué? El mensaje nombra el producto (antes mostraba su UUID al cliente).
       if (!product || !product.active) {
-        throw new NotFoundError(`Producto no encontrado: ${item.productId}`);
+        throw new NotFoundError(
+          product
+            ? `"${product.name}" ya no está disponible. Quítalo del carrito para continuar.`
+            : 'Uno de los productos de tu carrito ya no está disponible.',
+          'PRODUCT_UNAVAILABLE',
+        );
       }
-      if (product.stock < item.quantity) {
-        throw new ConflictError(`Stock insuficiente para el producto: ${product.name}`);
+
+      // RN-163: se reserva (descuenta) el stock de inmediato, al crear el pedido.
+      // ¿Qué? Descuento CONDICIONAL y atómico: solo descuenta si todavía hay `quantity` unidades.
+      // ¿Para qué? Antes se leía el stock y luego se descontaba: dos pedidos simultáneos por la
+      //   última unidad pasaban los dos la revisión y el stock quedaba en -1 (CA-016.4). Con el
+      //   WHERE stock >= quantity, Postgres bloquea la fila y el segundo pedido no descuenta nada.
+      const reserved = await tx.product.updateMany({
+        where: { id: productId, stock: { gte: quantity } },
+        data: { stock: { decrement: quantity } },
+      });
+      if (reserved.count === 0) {
+        const current = await tx.product.findUnique({ where: { id: productId } });
+        const left = current?.stock ?? 0;
+        throw new ConflictError(
+          left === 0
+            ? `"${product.name}" se agotó. Quítalo del carrito para continuar.`
+            : `Solo quedan ${left} unidades de "${product.name}". Ajusta la cantidad en tu carrito.`,
+          'OUT_OF_STOCK',
+        );
       }
 
       const unitPrice = Number(product.price);
-      total += unitPrice * item.quantity;
-      lineItems.push({ productId: product.id, name: product.name, quantity: item.quantity, unitPrice });
-
-      // RN-163: se reserva (descuenta) el stock de inmediato, al crear el pedido.
-      await tx.product.update({
-        where: { id: product.id },
-        data: { stock: { decrement: item.quantity } },
-      });
+      total += unitPrice * quantity;
+      lineItems.push({ productId: product.id, name: product.name, quantity, unitPrice });
     }
 
     const order = await tx.order.create({
@@ -98,12 +122,17 @@ export async function listMyOrders(clientId: string): Promise<OrderResponse[]> {
   }));
 }
 
-// ¿Qué? Lista los pedidos pendientes, para la bandeja del staff (RF-019).
-export async function listPendingOrders(): Promise<StaffOrderResponse[]> {
+// ¿Qué? Lista los pedidos de un estado, para la bandeja del staff (RF-019, HU-019).
+// ¿Para qué? La HU pide listar "por estado": además de los pendientes, el staff consulta los
+//   completados y cancelados. Pendientes del más antiguo al más nuevo (se atiende primero el
+//   que lleva más tiempo esperando); los cerrados del más reciente al más antiguo.
+export async function listOrdersByStatus(
+  status: 'pending' | 'completed' | 'cancelled' = 'pending',
+): Promise<StaffOrderResponse[]> {
   const orders = await db.order.findMany({
-    where: { status: 'pending' },
+    where: { status },
     include: { items: { include: { product: true } }, client: true },
-    orderBy: { createdAt: 'asc' },
+    orderBy: { createdAt: status === 'pending' ? 'asc' : 'desc' },
   });
 
   return orders.map((o) => ({
@@ -130,11 +159,29 @@ export async function updateOrderStatus(
   data: UpdateOrderStatusInput,
 ): Promise<{ id: string; status: string; paymentStatus: string }> {
   return db.$transaction(async (tx) => {
+    // ¿Qué? Cierra el pedido con un UPDATE CONDICIONAL (solo si sigue pendiente) ANTES de tocar
+    //   el stock (HU-019, CA-019.3).
+    // ¿Para qué? Antes se leía el estado y luego se cerraba: si dos personas del staff cancelaban
+    //   el mismo pedido a la vez, las dos pasaban la revisión y el stock se devolvía DOS veces.
+    const closed = await tx.order.updateMany({
+      where: { id, status: 'pending' },
+      data: {
+        status: data.status,
+        // ¿Qué? Momento del cierre: el reporte de ventas cuenta el pedido ese día (HU-022).
+        updatedAt: new Date(),
+        ...(data.status === 'completed' ? { paymentStatus: 'paid' as const } : {}),
+      },
+    });
+
     const order = await tx.order.findUnique({ where: { id }, include: { items: true } });
     if (!order) throw new NotFoundError('Pedido no encontrado.');
 
-    if (order.status !== 'pending') {
-      throw new BadRequestError(`El pedido ya está en estado final (${order.status}) y no puede modificarse.`);
+    if (closed.count === 0) {
+      const label = order.status === 'completed' ? 'completado' : 'cancelado';
+      throw new BadRequestError(
+        `Este pedido ya está ${label} y no se puede modificar.`,
+        'ORDER_FINAL_STATE',
+      );
     }
 
     if (data.status === 'cancelled') {
@@ -146,14 +193,6 @@ export async function updateOrderStatus(
       }
     }
 
-    const updated = await tx.order.update({
-      where: { id },
-      data: {
-        status: data.status,
-        paymentStatus: data.status === 'completed' ? 'paid' : order.paymentStatus,
-      },
-    });
-
-    return { id: updated.id, status: updated.status, paymentStatus: updated.paymentStatus };
+    return { id: order.id, status: order.status, paymentStatus: order.paymentStatus };
   });
 }

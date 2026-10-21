@@ -5,11 +5,14 @@
 
 import { Router, type IRouter } from 'express';
 import { authenticate, requireRole } from '../../middlewares/auth.middleware.js';
-import { validate } from '../../middlewares/validate.middleware.js';
+import { validate, validateIdParam } from '../../middlewares/validate.middleware.js';
 import { createSupplierSchema, updateSupplierSchema } from './suppliers.schema.js';
 import * as suppliersController from './suppliers.controller.js';
 
 const router: IRouter = Router();
+
+// ¿Qué? Un :id que no es UUID responde 404 en vez de 500 (HU-013).
+router.param('id', validateIdParam);
 
 router.use(authenticate, requireRole('staff'));
 

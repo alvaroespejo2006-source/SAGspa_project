@@ -40,6 +40,12 @@ export default defineConfig({
     // ¿Qué? Variables globales de vitest (describe, it, expect) sin importar.
     globals: true,
 
+    // ¿Qué? Hasta 15 s por test (el valor por defecto de Vitest es 5 s), igual que el backend.
+    // ¿Para qué? Las pruebas de pantallas con varios pasos (buscar, elegir, llenar y enviar)
+    //   tardan 1–2 s solas, pero con la máquina ocupada a veces pasaban de 5 s y fallaban por
+    //   tiempo, no por lógica (pasó con StaffPetsPage al correr la suite junto al backend).
+    testTimeout: 15_000,
+
     coverage: {
       provider: 'v8',
       reporter: ['text', 'lcov'],

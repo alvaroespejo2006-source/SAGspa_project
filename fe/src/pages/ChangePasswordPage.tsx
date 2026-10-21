@@ -46,10 +46,12 @@ export function ChangePasswordPage() {
     if (!formData.currentPassword) {
       newErrors.currentPassword = 'La contraseña actual es requerida.';
     }
+    // ¿Qué? "Diferente a la actual" solo se evalúa si la nueva ya es válida.
+    // ¿Para qué? Con ambos campos vacíos ('' === '') aparecía "debe ser diferente a la
+    //   actual" en lugar del requisito que realmente falta.
     if (!/^(?=.*[a-z])(?=.*[A-Z])(?=.*\d).{8,}$/.test(formData.newPassword)) {
       newErrors.newPassword = 'La contraseña debe tener 8+ caracteres, mayúscula, minúscula y número.';
-    }
-    if (formData.newPassword === formData.currentPassword) {
+    } else if (formData.newPassword === formData.currentPassword) {
       newErrors.newPassword = 'La nueva contraseña debe ser diferente a la actual.';
     }
     if (formData.newPassword !== formData.confirmNewPassword) {

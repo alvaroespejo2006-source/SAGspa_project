@@ -29,8 +29,8 @@ La cita queda con estado inicial `pending` hasta que el staff la confirme desde 
 | 3    | El middleware `validate` verifica el body con el schema Zod `createAppointmentSchema`.           |
 | 4    | Se verifica que `petId` exista y pertenezca al `clientId` autenticado (ver RF-012).               |
 | 5    | Si `petId` no existe o pertenece a otro cliente, retorna HTTP 404/403.                            |
-| 6    | Si `date` es hoy o una fecha pasada, retorna HTTP 422 ("La cita debe ser a partir de mañana").    |
-| 7    | Si `time` está fuera del horario de atención (9:00–18:00), retorna HTTP 422.                      |
+| 6    | Si `date` es hoy o una fecha pasada **en la zona horaria del negocio**, retorna HTTP 400 `DATE_TOO_SOON` ("La cita debe ser a partir de mañana."). |
+| 7    | Si `time` está fuera del horario de atención (9:00–18:00), retorna HTTP 400 `OUTSIDE_BUSINESS_HOURS`. |
 | 8    | Se verifica que `serviceId` exista y esté activo en el catálogo de servicios (RF-014).            |
 | 9    | Si no existe o está inactivo, retorna HTTP 404.                                                   |
 | 10   | Se inserta la cita en la tabla `appointments` con `type = 'grooming'`, `status = 'pending'` y `clientId` del token. |
@@ -44,7 +44,7 @@ La cita queda con estado inicial `pending` hasta que el staff la confirme desde 
 | ------ | ------------------------------------------------------------------------------------------------ |
 | RN-090 | Solo un cliente autenticado (`role = 'client'`) puede crear una cita de grooming.                |
 | RN-091 | El `petId` debe existir y pertenecer al `clientId` autenticado — un cliente no puede agendar citas para mascotas de otro cliente. |
-| RN-092 | La fecha de la cita debe ser, como mínimo, el día siguiente a la fecha actual.                   |
+| RN-092 | La fecha de la cita debe ser, como mínimo, el día siguiente a la fecha actual **en Colombia** (`BUSINESS_TIMEZONE`, por defecto `America/Bogota`). Antes se calculaba en UTC y, desde las 7:00 p.m., se rechazaban las citas para mañana. |
 | RN-093 | La hora debe estar entre las 9:00 a.m. y las 6:00 p.m. (horario de atención del local).           |
 | RN-094 | El `serviceId` debe referenciar un servicio existente y activo del catálogo (RF-014).             |
 | RN-095 | Toda cita nueva se crea con `status = 'pending'`.                                                 |
@@ -84,15 +84,26 @@ La cita queda con estado inicial `pending` hasta que el staff la confirme desde 
 }
 ```
 
-**Output error 422** (fecha/hora inválida):
+**Output error 400** (fecha u hora fuera de las reglas de negocio):
 ```json
-{ "error": "La cita debe ser a partir de mañana" }
+{ "success": false, "error": { "code": "DATE_TOO_SOON", "message": "La cita debe ser a partir de mañana." } }
 ```
 
-**Output error 404** (mascota no encontrada o de otro cliente):
+| `error.code` | Mensaje |
+| ------------ | ------- |
+| `DATE_TOO_SOON` | La cita debe ser a partir de mañana. |
+| `OUTSIDE_BUSINESS_HOURS` | La hora debe estar entre las 9:00am y las 6:00pm. |
+
+> **Decisión del equipo:** el RF decía 422, pero estas reglas dependen de la fecha actual y del
+> horario del negocio (no del formato del dato), así que responden **400**, igual que las demás
+> reglas de negocio. El 422 queda para errores de formato del schema Zod.
+
+**Output error 404 / 403** (mascota inexistente / de otro cliente):
 ```json
-{ "error": "Pet not found" }
+{ "success": false, "error": { "code": "FORBIDDEN", "message": "Esta mascota no pertenece a tu cuenta." } }
 ```
+
+**`GET /api/v1/appointments/me`** — cada cita incluye además `pet: { id, name }` y `service: { id, name }` (HU-009, CA-009.6).
 
 ---
 

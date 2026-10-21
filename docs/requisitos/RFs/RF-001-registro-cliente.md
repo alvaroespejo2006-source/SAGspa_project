@@ -70,26 +70,38 @@ de autenticación).
 **Output éxito** (HTTP 201):
 ```json
 {
-  "id": "uuid",
-  "documentId": "string",
-  "firstName": "string",
-  "lastName": "string",
-  "phone": "string",
-  "email": "string",
-  "role": "client",
-  "isEmailVerified": false,
-  "createdAt": "timestamp"
+  "success": true,
+  "data": {
+    "id": "uuid",
+    "documentId": "string",
+    "firstName": "string",
+    "lastName": "string",
+    "phone": "string",
+    "email": "string",
+    "role": "client",
+    "isEmailVerified": false,
+    "createdAt": "timestamp"
+  }
 }
 ```
 
 **Output error 422** (validación fallida):
 ```json
-{ "error": "Validation failed", "details": [ { "field": "password", "message": "..." } ] }
+{
+  "success": false,
+  "error": {
+    "code": "VALIDATION_ERROR",
+    "message": "[{\"field\":\"phone\",\"message\":\"El teléfono es obligatorio.\"}]"
+  }
+}
 ```
 
 **Output error 409** (email o documento ya registrados):
 ```json
-{ "error": "Email or document already registered" }
+{
+  "success": false,
+  "error": { "code": "CONFLICT", "message": "El email o el documento ya están registrados." }
+}
 ```
 
 ---

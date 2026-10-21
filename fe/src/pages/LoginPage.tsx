@@ -6,11 +6,24 @@
  *   components/auth/LoginForm.tsx, reutilizado también por el pop-up de la navbar.
  */
 
-import { Link, useNavigate } from 'react-router-dom';
+import { Link, useLocation, useNavigate, useSearchParams } from 'react-router-dom';
 import { LoginForm } from '@/components/auth/LoginForm';
+import { Alert } from '@/components/ui/Alert';
+
+// ¿Qué? Datos que otra página puede dejar al redirigir al login.
+// ¿Para qué? Mostrar el mensaje de éxito al venir de restablecer la contraseña (CA-005.3).
+interface LoginLocationState {
+  successMessage?: string;
+}
 
 export function LoginPage() {
   const navigate = useNavigate();
+  const location = useLocation();
+  const { successMessage } = (location.state as LoginLocationState | null) ?? {};
+  // ¿Qué? El interceptor de Axios llega aquí con ?sesion=expirada cuando el refresh
+  //   token ya no sirve (HU-006, CA-006.2).
+  const [searchParams] = useSearchParams();
+  const sessionExpired = searchParams.get('sesion') === 'expirada';
 
   return (
     <div className="min-h-[calc(100vh-8rem)] flex items-center justify-center px-4 py-12">
@@ -26,6 +39,18 @@ export function LoginPage() {
             </Link>
           </p>
         </div>
+
+        {successMessage && (
+          <div className="mb-4">
+            <Alert type="success" message={successMessage} />
+          </div>
+        )}
+
+        {sessionExpired && (
+          <div className="mb-4">
+            <Alert type="info" message="Tu sesión expiró. Inicia sesión de nuevo para continuar." />
+          </div>
+        )}
 
         <LoginForm
           onSuccess={(profile) => navigate(profile.role === 'staff' ? '/staff' : '/app')}

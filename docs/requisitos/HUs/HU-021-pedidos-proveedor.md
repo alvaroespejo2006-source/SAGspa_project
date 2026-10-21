@@ -14,8 +14,10 @@
 | **Título**       | Reabastecer productos con pedido a proveedor |
 | **Módulo**       | Inventario y Proveedores                       |
 | **Prioridad**    | Media                                             |
-| **Estado**       | Por implementar                                    |
+| **Estado**       | Implementada                                       |
 | **RF asociados** | RF-021                                               |
+| **Responsable**  | Alvaro Espejo                                        |
+| **Rama**         | `feature/HU-021-pedidos-proveedor`                   |
 
 ---
 
@@ -32,17 +34,21 @@
 ### CA-021.1 — Crear pedido a proveedor
 - **Dado que** un producto está por agotarse,
 - **cuando** creo un pedido a un proveedor indicando productos y cantidades,
-- **entonces** el pedido queda registrado con estado "pedido" (`ordered`).
+- **entonces** el pedido queda registrado con estado "pedido" (`ordered`) y el stock todavía no cambia.
+- Solo puedo elegir proveedores activos. Si una fila está incompleta, la pantalla dice cuál (antes se descartaba en silencio).
 
 ### CA-021.2 — Marcar como recibido
 - **Dado que** la mercancía del pedido llegó al local,
 - **cuando** marco el pedido como recibido,
 - **entonces** el stock de cada producto del pedido aumenta según la cantidad recibida.
+- Antes de recibirlo, la pantalla pide confirmación y después dice cuánto se sumó ("Stock actualizado: +10 Pelota").
+- La fecha de recepción, si no la indico, es hoy en Colombia.
 
 ### CA-021.3 — No se puede recibir dos veces
 - **Dado que** un pedido ya fue marcado como recibido,
 - **cuando** intento marcarlo como recibido otra vez,
-- **entonces** el sistema lo impide (para no duplicar el aumento de stock).
+- **entonces** el sistema lo impide (para no duplicar el aumento de stock): "Este pedido ya fue marcado como recibido: el stock ya se sumó."
+- Esto se cumple aunque dos personas lo marquen como recibido al mismo tiempo.
 
 ---
 

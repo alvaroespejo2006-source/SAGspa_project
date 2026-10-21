@@ -14,7 +14,9 @@
 | **Título**       | Agenda del día          |
 | **Módulo**       | Agenda del staff            |
 | **Prioridad**    | Alta                          |
-| **Estado**       | Por implementar                |
+| **Estado**       | Implementada                   |
+| **Responsable**  | Alvaro Espejo |
+| **Rama**         | `feature/HU-017-agenda-citas` |
 | **RF asociados** | RF-017                           |
 
 ---
@@ -33,11 +35,13 @@
 - **Dado que** inicié sesión como staff,
 - **cuando** abro la agenda,
 - **entonces** veo las citas del día actual ordenadas por hora, cada una con mascota, cliente, servicio y estado.
+- "Hoy" es la fecha de Colombia (antes, desde las 7:00 p.m., la agenda abría en el día siguiente).
 
 ### CA-017.2 — Cambiar de día
 - **Dado que** estoy en la agenda,
 - **cuando** elijo otra fecha,
 - **entonces** veo las citas correspondientes a esa fecha.
+- Además del selector hay botones "← Día anterior", "Hoy" y "Día siguiente →".
 
 ### CA-017.3 — Confirmar una cita
 - **Dado que** una cita está `pending`,
@@ -47,12 +51,14 @@
 ### CA-017.4 — Marcar cita como atendida
 - **Dado que** terminé de atender una cita,
 - **cuando** la marco como completada,
-- **entonces** su estado cambia a `completed`.
+- **entonces** su estado cambia a `completed` y se muestra como "Atendida" (botón "Marcar como atendida").
+- Una cita atendida o cancelada ya no se puede modificar: "Esta cita ya está atendida y no se puede modificar."
+- Cancelar una cita pide confirmación.
 
 ### CA-017.5 — Sin citas ese día
 - **Dado que** no hay citas para la fecha seleccionada,
 - **cuando** abro la agenda,
-- **entonces** veo un mensaje indicando que no hay citas programadas.
+- **entonces** veo el mensaje "No hay citas programadas para este día."
 
 ---
 
