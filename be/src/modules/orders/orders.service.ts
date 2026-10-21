@@ -167,6 +167,8 @@ export async function updateOrderStatus(
       where: { id, status: 'pending' },
       data: {
         status: data.status,
+        // ¿Qué? Momento del cierre: el reporte de ventas cuenta el pedido ese día (HU-022).
+        updatedAt: new Date(),
         ...(data.status === 'completed' ? { paymentStatus: 'paid' as const } : {}),
       },
     });
