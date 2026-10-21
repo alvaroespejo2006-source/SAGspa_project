@@ -28,9 +28,19 @@ export type CreateSaleInput = z.infer<typeof createSaleSchema>;
 
 const DATE_REGEX = /^\d{4}-\d{2}-\d{2}$/;
 
-export const salesReportQuerySchema = z.object({
-  from: z.string().regex(DATE_REGEX, 'from debe tener el formato AAAA-MM-DD.'),
-  to: z.string().regex(DATE_REGEX, 'to debe tener el formato AAAA-MM-DD.'),
-});
+export const salesReportQuerySchema = z
+  .object({
+    from: z
+      .string({ required_error: 'Indica la fecha inicial.' })
+      .regex(DATE_REGEX, 'La fecha inicial debe tener el formato AAAA-MM-DD.'),
+    to: z
+      .string({ required_error: 'Indica la fecha final.' })
+      .regex(DATE_REGEX, 'La fecha final debe tener el formato AAAA-MM-DD.'),
+  })
+  // ¿Qué? Un rango al revés daba un reporte vacío sin explicación (HU-022).
+  .refine((q) => q.from <= q.to, {
+    message: 'La fecha inicial no puede ser posterior a la fecha final.',
+    path: ['from'],
+  });
 
 export type SalesReportQuery = z.infer<typeof salesReportQuerySchema>;
