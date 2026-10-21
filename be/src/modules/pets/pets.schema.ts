@@ -24,16 +24,48 @@ const skinConditionInput = z.object({
   note: z.string().max(300).trim().optional(),
 });
 
+// ¿Qué? Sexo de la mascota — conjunto cerrado (HU-012, CA-012.1).
+// ¿Para qué? Era texto libre: se podía guardar "M", "macho", "Macho " o cualquier cosa.
+export const PET_GENDERS = ['macho', 'hembra'] as const;
+
+// ¿Qué? Convierte '' y espacios en `undefined` y normaliza a minúsculas.
+// ¿Para qué? Un campo opcional que el formulario manda vacío no debe fallar la validación.
+const optionalLowercase = (value: unknown) => {
+  if (typeof value !== 'string') return value;
+  const trimmed = value.trim().toLowerCase();
+  return trimmed === '' ? undefined : trimmed;
+};
+
 // ¿Qué? Campos comunes al crear y editar una mascota.
 const petFields = {
-  name: z.string().min(1, 'El nombre de la mascota es requerido.').max(100).trim(),
+  // ¿Qué? trim ANTES de min: con .min(1).trim() un nombre de solo espacios se guardaba vacío.
+  name: z
+    .string({ required_error: 'El nombre de la mascota es requerido.' })
+    .trim()
+    .min(1, 'El nombre de la mascota es requerido.')
+    .max(100, 'El nombre no puede superar los 100 caracteres.'),
   species: z.enum(PET_SPECIES, {
     errorMap: () => ({ message: `La especie debe ser una de: ${PET_SPECIES.join(', ')}.` }),
   }),
-  breed: z.string().max(100).trim().optional(),
-  gender: z.string().max(20).trim().optional(),
-  age: z.coerce.number().int().min(0).max(100).optional(),
-  weight: z.coerce.number().positive('El peso debe ser mayor a 0.').max(999.99).optional(),
+  breed: z.string().trim().max(100, 'La raza no puede superar los 100 caracteres.').optional(),
+  gender: z.preprocess(
+    optionalLowercase,
+    z
+      .enum(PET_GENDERS, { errorMap: () => ({ message: 'El sexo debe ser macho o hembra.' }) })
+      .optional(),
+  ),
+  // ¿Qué? Mensajes en español (zod los daba en inglés: "Expected integer, received float").
+  age: z.coerce
+    .number({ invalid_type_error: 'La edad debe ser un número.' })
+    .int('La edad debe ser un número entero de años.')
+    .min(0, 'La edad no puede ser negativa.')
+    .max(40, 'Revisa la edad: no puede superar los 40 años.')
+    .optional(),
+  weight: z.coerce
+    .number({ invalid_type_error: 'El peso debe ser un número.' })
+    .positive('El peso debe ser mayor a 0.')
+    .max(999.99, 'Revisa el peso: no puede superar los 999,99 kg.')
+    .optional(),
   color: z.string().max(50).trim().optional(),
   // ¿Qué? Si no se envía, el service lo deduce del peso (o queda null).
   size: z.enum(PET_SIZES).optional(),

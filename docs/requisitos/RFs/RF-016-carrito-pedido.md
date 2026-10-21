@@ -42,10 +42,13 @@ recoger (auto-servicio de apartado).
 | RN-160 | Solo un cliente autenticado puede crear un pedido.                                                |
 | RN-161 | El precio de cada línea se toma del catálogo en el servidor — nunca del payload del cliente.      |
 | RN-162 | No se puede confirmar un pedido si algún producto no tiene `stock` suficiente.                    |
-| RN-163 | El `stock` del producto se reserva (descuenta) al crear el pedido, evitando sobreventa.            |
+| RN-163 | El `stock` del producto se reserva (descuenta) al crear el pedido, evitando sobreventa. El descuento es **condicional y atómico** (`UPDATE … WHERE stock >= cantidad`): antes se leía y luego se descontaba, y con pedidos simultáneos el stock quedaba negativo. |
 | RN-164 | Todo pedido nuevo se crea con `status = 'pending'` y `paymentStatus = 'unpaid'`.                   |
 | RN-165 | El pago se registra manualmente por el staff al momento de la entrega — no existe pasarela de pago en línea en este alcance. |
 | RN-166 | Si un pedido se cancela, el `stock` reservado se restaura a los productos correspondientes.        |
+| RN-167 | *(nueva)* Las líneas repetidas del mismo producto se suman antes de validar el stock.              |
+| RN-168 | *(nueva)* Sin stock suficiente → 409 `OUT_OF_STOCK` con el nombre del producto y las unidades que quedan; producto inactivo → 404 `PRODUCT_UNAVAILABLE` con su nombre. |
+| RN-169 | *(nueva)* Máximo 99 unidades por producto y 50 productos distintos por pedido.                     |
 
 ---
 

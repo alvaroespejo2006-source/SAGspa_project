@@ -48,7 +48,13 @@ export const registerSchema = z.object({
     .max(100)
     .regex(NAME_REGEX, 'El apellido solo puede contener letras.'),
   // ¿Qué? El teléfono es obligatorio (RN-003 de RF-001) — canal principal para confirmar citas.
-  phone: z.string().trim().regex(PHONE_REGEX, 'El teléfono debe tener entre 7 y 15 dígitos.'),
+  // ¿Para qué? Distinguir "no lo escribió" de "lo escribió mal" (CA-001.2): si llega vacío
+  //   o no llega, el mensaje dice que es obligatorio en vez de hablar de dígitos.
+  phone: z
+    .string({ required_error: 'El teléfono es obligatorio.' })
+    .trim()
+    .min(1, 'El teléfono es obligatorio.')
+    .regex(PHONE_REGEX, 'El teléfono debe tener entre 7 y 15 dígitos.'),
   email: z.string().email('El email no tiene un formato válido.').toLowerCase().trim(),
   password: z.string().regex(PASSWORD_REGEX, PASSWORD_MESSAGE),
 });
@@ -71,7 +77,9 @@ export const createStaffSchema = z.object({
     .min(2, 'El apellido debe tener al menos 2 caracteres.')
     .max(100)
     .regex(NAME_REGEX, 'El apellido solo puede contener letras.'),
-  email: z.string().email('El email no tiene un formato válido.').toLowerCase().trim(),
+  // ¿Qué? trim/toLowerCase antes de .email(), igual que el login (HU-002): un correo con
+  //   espacios alrededor ya no responde 422 y se guarda normalizado (evita duplicados).
+  email: z.string().trim().toLowerCase().email('El email no tiene un formato válido.'),
   password: z.string().regex(PASSWORD_REGEX, PASSWORD_MESSAGE),
 });
 
@@ -83,7 +91,9 @@ export type CreateStaffInput = z.infer<typeof createStaffSchema>;
 // ¿Impacto? La contraseña solo valida que no esté vacía — la verificación del hash
 //   la realiza el service, no el schema (evitar revelar reglas de contraseña en login).
 export const loginSchema = z.object({
-  email: z.string().email('El email no tiene un formato válido.').toLowerCase().trim(),
+  // ¿Qué? trim/toLowerCase ANTES de .email(): zod aplica las reglas en orden, y con
+  //   .email() primero un correo pegado con espacios ("  ana@x.com ") fallaba con 422.
+  email: z.string().trim().toLowerCase().email('El email no tiene un formato válido.'),
   password: z.string().min(1, 'La contraseña es requerida.'),
 });
 
@@ -110,7 +120,7 @@ export const changePasswordSchema = z
     newPassword: z.string().regex(PASSWORD_REGEX, PASSWORD_MESSAGE),
   })
   .refine((data) => data.currentPassword !== data.newPassword, {
-    message: 'La nueva contraseña no puede ser igual a la actual.',
+    message: 'La nueva contraseña debe ser diferente a la actual.',
     path: ['newPassword'],
   });
 
@@ -122,7 +132,9 @@ export type ChangePasswordInput = z.infer<typeof changePasswordSchema>;
 // ¿Impacto? El service siempre responde 200 independientemente de si el email existe —
 //   este schema solo verifica el formato, no la existencia del usuario.
 export const forgotPasswordSchema = z.object({
-  email: z.string().email('El email no tiene un formato válido.').toLowerCase().trim(),
+  // ¿Qué? trim/toLowerCase ANTES de .email(), igual que en el login (HU-002): con .email()
+  //   primero, un correo pegado con espacios respondía 422 en vez del mensaje genérico.
+  email: z.string().trim().toLowerCase().email('El email no tiene un formato válido.'),
 });
 
 export type ForgotPasswordInput = z.infer<typeof forgotPasswordSchema>;
@@ -139,6 +151,15 @@ export const resetPasswordSchema = z.object({
 
 export type ResetPasswordInput = z.infer<typeof resetPasswordSchema>;
 
+// --- Schema de validación del enlace de recuperación (HU-005) ---
+// ¿Qué? Solo el token: la página /reset-password pregunta si el enlace sigue vigente
+//   antes de mostrar el formulario (CA-005.2).
+export const validateResetTokenSchema = z.object({
+  token: z.string().min(1, 'El token es requerido.'),
+});
+
+export type ValidateResetTokenInput = z.infer<typeof validateResetTokenSchema>;
+
 // --- Schema de verificación de email ---
 // ¿Qué? Valida que el body contenga el token de activación enviado por email al registrarse.
 // ¿Para qué? Asegurar que el campo token esté presente y no vacío antes de buscarlo en la BD.
@@ -149,3 +170,12 @@ export const verifyEmailSchema = z.object({
 });
 
 export type VerifyEmailInput = z.infer<typeof verifyEmailSchema>;
+
+// --- Schema de reenvío del email de verificación (HU-003) ---
+// ¿Qué? Solo pide el correo de la cuenta pendiente de verificar.
+// ¿Para qué? Permitir pedir un enlace nuevo cuando el anterior expiró (CA-003.2).
+export const resendVerificationSchema = z.object({
+  email: z.string().trim().toLowerCase().email('El email no tiene un formato válido.'),
+});
+
+export type ResendVerificationInput = z.infer<typeof resendVerificationSchema>;

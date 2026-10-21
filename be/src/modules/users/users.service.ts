@@ -6,7 +6,7 @@
  */
 
 import { db } from '../../db/index.js';
-import { NotFoundError } from '../../middlewares/error.middleware.js';
+import { UnauthorizedError } from '../../middlewares/error.middleware.js';
 
 // ¿Qué? DTO de perfil de usuario — omite hashedPassword.
 export interface UserProfile {
@@ -31,7 +31,10 @@ export async function getUserById(userId: string): Promise<UserProfile> {
     where: { id: userId },
   });
 
-  if (!user) throw new NotFoundError('Usuario no encontrado.');
+  // ¿Qué? 401 (no 404) si la cuenta del token ya no existe.
+  // ¿Para qué? Un token de una cuenta eliminada es un token que ya no sirve (CA-007.2):
+  //   con 401 el frontend trata el caso igual que un token inválido y vuelve al login.
+  if (!user) throw new UnauthorizedError('Tu sesión no es válida. Inicia sesión de nuevo.');
 
   return {
     id: user.id,
@@ -85,4 +88,35 @@ export async function searchClients(search: string): Promise<ClientSummary[]> {
     email: u.email,
     phone: u.phone,
   }));
+}
+
+// ¿Qué? Resumen de una cuenta de staff para el listado del panel (HU-008, CA-008.4).
+// ¿Para qué? Ver quién tiene acceso al panel y si ya activó su cuenta, sin exponer el hash.
+export interface StaffSummary {
+  id: string;
+  firstName: string;
+  lastName: string;
+  email: string;
+  isEmailVerified: boolean;
+  createdAt: Date;
+}
+
+// ¿Qué? Lista todas las cuentas de staff, la más reciente primero.
+// ¿Para qué? Que quien acaba de crear una cuenta la vea arriba del listado (CA-008.4).
+// ¿Impacto? Solo role: 'staff' — nunca devuelve clientes.
+export async function listStaff(): Promise<StaffSummary[]> {
+  const staff = await db.user.findMany({
+    where: { role: 'staff' },
+    orderBy: { createdAt: 'desc' },
+    select: {
+      id: true,
+      firstName: true,
+      lastName: true,
+      email: true,
+      isEmailVerified: true,
+      createdAt: true,
+    },
+  });
+
+  return staff;
 }

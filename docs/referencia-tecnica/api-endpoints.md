@@ -25,13 +25,17 @@
 | GET | `/health` | No | Health check |
 | POST | `/api/v1/auth/register` | No | Registro de nuevo usuario |
 | POST | `/api/v1/auth/verify-email` | No | Verificación de email |
+| POST | `/api/v1/auth/resend-verification` | No | Reenvío del enlace de verificación |
 | POST | `/api/v1/auth/login` | No | Login y emisión de tokens |
 | POST | `/api/v1/auth/refresh` | No† | Renovación de tokens |
 | POST | `/api/v1/auth/change-password` | Sí | Cambio de contraseña |
 | POST | `/api/v1/auth/forgot-password` | No | Solicitar recuperación |
+| POST | `/api/v1/auth/reset-password/validate` | No | ¿El enlace de recuperación sigue vigente? |
 | POST | `/api/v1/auth/reset-password` | No | Restablecer contraseña |
 | GET | `/api/v1/users/me` | Sí | Perfil del usuario |
-| PATCH | `/api/v1/users/me/locale` | Sí | Actualizar idioma preferido |
+| PATCH | `/api/v1/users/me/locale` | Sí | Actualizar idioma preferido *(no implementado)* |
+| POST | `/api/v1/staff` | Sí (staff) | Crear una cuenta de staff (RF-008) |
+| GET | `/api/v1/staff` | Sí (staff) | Listar las cuentas de staff (RF-008) |
 
 † Requiere `refreshToken` en el body.
 
@@ -123,11 +127,43 @@ Valida el token de verificación de email y activa la cuenta del usuario.
 **Errores:**
 | Código | Descripción |
 |---|---|
-| 400 | Token inválido, expirado o ya utilizado |
+| 400 `TOKEN_INVALID` | El token no existe |
+| 400 `TOKEN_ALREADY_USED` | El enlace ya activó la cuenta (se informa antes que la expiración) |
+| 400 `TOKEN_EXPIRED` | Pasaron más de 24 horas |
 | 422 | Body inválido (token faltante) |
 | 500 | Error interno del servidor |
 
 > ℹ️ El token expira en 24 horas desde el registro. Cada token es de un solo uso.
+
+---
+
+### `POST /api/v1/auth/resend-verification`
+
+Envía un enlace de verificación nuevo si la cuenta existe y aún no está verificada. Los
+enlaces pendientes anteriores quedan invalidados (HU-003).
+
+**No requiere autenticación.**
+
+**Body:**
+```json
+{
+  "email": "ana@ejemplo.com"
+}
+```
+
+**Respuesta 200** (siempre la misma, para no revelar qué correos existen):
+```json
+{
+  "success": true,
+  "message": "Si tu cuenta está pendiente de verificación, te enviamos un nuevo enlace a tu correo."
+}
+```
+
+**Errores:**
+| Código | Descripción |
+|---|---|
+| 422 | Correo con formato inválido |
+| 429 | Superó el rate limit de `/auth` |
 
 ---
 
@@ -191,20 +227,26 @@ Renueva el par de tokens (access + refresh). Implementa rotación de tokens.
 **Respuesta 200:**
 ```json
 {
-  "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-  "refreshToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
-  "tokenType": "bearer"
+  "success": true,
+  "data": {
+    "accessToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+    "refreshToken": "eyJhbGciOiJIUzI1NiIsInR5cCI6IkpXVCJ9...",
+    "tokenType": "bearer"
+  }
 }
 ```
 
 **Errores:**
 | Código | Descripción |
 |---|---|
-| 401 | Refresh token inválido o expirado |
+| 401 | Refresh token inválido, expirado, de otro tipo, de una cuenta eliminada o anterior a un cambio de contraseña |
 | 422 | Body inválido |
+| 429 | Más de 100 renovaciones en 15 minutos desde la misma IP |
 | 500 | Error interno del servidor |
 
-> ℹ️ Rotación de tokens: cada llamada exitosa a `/refresh` genera un **nuevo** `refreshToken`. El anterior queda obsoleto.
+> ℹ️ Rotación de tokens: cada llamada exitosa a `/refresh` genera un **nuevo** `refreshToken`.
+> Como los tokens no se guardan en la BD, el anterior sigue siendo válido hasta que expira
+> o hasta que el usuario cambia su contraseña (HU-004).
 
 ---
 
@@ -227,20 +269,21 @@ Cambia la contraseña del usuario autenticado, verificando primero la contraseñ
 - `newPassword`: mínimo 8 caracteres, al menos 1 mayúscula, 1 minúscula, 1 número
 - `newPassword` no puede ser igual a `currentPassword`
 
-**Respuesta 200:**
+**Respuesta 200** (incluye tokens nuevos — los refresh tokens anteriores dejan de servir):
 ```json
 {
   "success": true,
-  "message": "Contraseña cambiada correctamente."
+  "message": "Contraseña actualizada correctamente.",
+  "data": { "accessToken": "eyJ...", "refreshToken": "eyJ...", "tokenType": "bearer" }
 }
 ```
 
 **Errores:**
 | Código | Descripción |
 |---|---|
-| 400 | Nueva contraseña igual a la actual |
-| 401 | No autenticado o contraseña actual incorrecta |
-| 422 | Datos de entrada inválidos |
+| 400 `INVALID_CURRENT_PASSWORD` | Contraseña actual incorrecta |
+| 401 | No autenticado (token ausente, inválido o expirado) |
+| 422 | Nueva contraseña débil o igual a la actual |
 | 500 | Error interno del servidor |
 
 ---
@@ -261,7 +304,8 @@ Solicita el envío de un email de recuperación de contraseña.
 **Respuesta 200 (siempre, incluso si el email no existe):**
 ```json
 {
-  "message": "Si el email está registrado, recibirás un enlace de recuperación."
+  "success": true,
+  "message": "Si el correo está registrado, recibirás un enlace de recuperación."
 }
 ```
 
@@ -278,6 +322,27 @@ Solicita el envío de un email de recuperación de contraseña.
 - Genera un token con `crypto.randomBytes(32)` — válido 1 hora
 - Guarda el token en la tabla `password_reset_tokens`
 - Envía email con enlace: `{FRONTEND_URL}/reset-password?token={token}`
+- Los enlaces anteriores que no se usaron quedan inválidos (solo sirve el último)
+
+---
+
+### `POST /api/v1/auth/reset-password/validate`
+
+Indica si un enlace de recuperación sigue vigente, **sin consumirlo**. La página `/reset-password` lo llama al abrirse para avisar de inmediato si el enlace expiró (HU-005, CA-005.2).
+
+**No requiere autenticación.**
+
+**Body:**
+```json
+{ "token": "token-recibido-por-email" }
+```
+
+**Respuesta 200:**
+```json
+{ "success": true, "message": "El enlace de recuperación es válido." }
+```
+
+**Errores:** los mismos `400` que `reset-password` (`TOKEN_INVALID`, `TOKEN_ALREADY_USED`, `TOKEN_EXPIRED`) y `422` si falta el token.
 
 ---
 
@@ -303,14 +368,14 @@ Restablece la contraseña usando el token de recuperación.
 ```json
 {
   "success": true,
-  "message": "Contraseña restablecida correctamente. Ya puedes iniciar sesión."
+  "message": "Contraseña restablecida correctamente."
 }
 ```
 
 **Errores:**
 | Código | Descripción |
 |---|---|
-| 400 | Token inválido, expirado o ya utilizado |
+| 400 | `TOKEN_INVALID`, `TOKEN_ALREADY_USED` o `TOKEN_EXPIRED` (ver RF-005) |
 | 422 | Datos de entrada inválidos |
 | 500 | Error interno del servidor |
 
@@ -327,25 +392,33 @@ Retorna el perfil completo del usuario actualmente autenticado.
 **Respuesta 200:**
 ```json
 {
-  "id": "550e8400-e29b-41d4-a716-446655440000",
-  "email": "usuario@ejemplo.com",
-  "fullName": "Juan Pérez",
-  "isEmailVerified": true,
-  "locale": "es",
-  "createdAt": "2026-03-22T10:00:00.000Z",
-  "updatedAt": "2026-03-22T10:00:00.000Z"
+  "success": true,
+  "data": {
+    "id": "550e8400-e29b-41d4-a716-446655440000",
+    "documentId": "1000000001",
+    "firstName": "Juan",
+    "lastName": "Pérez",
+    "phone": "3001234567",
+    "email": "usuario@ejemplo.com",
+    "role": "client",
+    "isEmailVerified": true,
+    "createdAt": "2026-03-22T10:00:00.000Z",
+    "updatedAt": "2026-03-22T10:00:00.000Z"
+  }
 }
 ```
 
 **Errores:**
 | Código | Descripción |
 |---|---|
-| 401 | No autenticado o token inválido/expirado |
+| 401 | Sin token, token inválido/manipulado/expirado, o la cuenta del token ya no existe (ver RF-007) |
 | 500 | Error interno del servidor |
 
 ---
 
 ### `PATCH /api/v1/users/me/locale`
+
+> ⚠️ **No implementado** en el backend actual — se conserva como referencia de una versión anterior.
 
 Actualiza el idioma preferido del usuario autenticado. El valor se persiste en la base de datos.
 
@@ -425,11 +498,11 @@ En errores de validación (422), se incluyen los detalles:
 
 | Endpoint | Límite | Ventana |
 |---|---|---|
-| `POST /api/v1/auth/login` | 10 requests | 15 minutos |
-| `POST /api/v1/auth/register` | 10 requests | 15 minutos |
-| `POST /api/v1/auth/forgot-password` | 5 requests | 15 minutos |
-| `POST /api/v1/auth/verify-email` | 10 requests | 15 minutos |
+| Todos los de `/api/v1/auth/*` **excepto** `/refresh` (login, register, forgot/reset-password, verify-email, resend-verification, change-password) | 10 requests **en total** por IP | 15 minutos |
+| `POST /api/v1/auth/refresh` | 100 requests por IP (contador propio — HU-006) | 15 minutos |
 | `GET /api/v1/users/me` | Sin límite para usuarios auth | — |
+
+> El contador de `/auth` es **compartido**: 10 intentos entre todos esos endpoints, no 10 por cada uno.
 
 ---
 

@@ -62,13 +62,21 @@ export async function createSymptomReport(
   return toResponse(report);
 }
 
+// ¿Qué? Reporte de "Mis reportes" con el nombre de la mascota (HU-010, CA-010.4).
+// ¿Para qué? Que el cliente sepa de qué mascota es cada recomendación sin que el frontend
+//   tenga que cruzar la lista con sus mascotas.
+export interface MySymptomReportResponse extends SymptomReportResponse {
+  pet: { id: string; name: string };
+}
+
 // ¿Qué? Lista los reportes del cliente autenticado, más recientes primero.
-export async function listMyReports(clientId: string): Promise<SymptomReportResponse[]> {
+export async function listMyReports(clientId: string): Promise<MySymptomReportResponse[]> {
   const reports = await db.symptomReport.findMany({
     where: { clientId },
     orderBy: { createdAt: 'desc' },
+    include: { pet: true },
   });
-  return reports.map(toResponse);
+  return reports.map((r) => ({ ...toResponse(r), pet: { id: r.pet.id, name: r.pet.name } }));
 }
 
 // ¿Qué? Forma enriquecida de un reporte para la bandeja del staff (RF-018) — incluye
@@ -99,16 +107,24 @@ export async function reviewReport(
   id: string,
   data: ReviewSymptomReportInput,
 ): Promise<SymptomReportResponse> {
-  const existing = await db.symptomReport.findUnique({ where: { id } });
-  if (!existing) throw new NotFoundError('Reporte no encontrado.');
-  if (existing.status === 'reviewed') {
-    throw new BadRequestError('Este reporte ya fue revisado.');
-  }
-
-  const updated = await db.symptomReport.update({
-    where: { id },
+  // ¿Qué? Actualización CONDICIONAL: solo si el reporte sigue pendiente.
+  // ¿Para qué? Antes se leía el estado y luego se actualizaba: si dos personas del staff
+  //   respondían el mismo reporte a la vez, la segunda sobrescribía la recomendación de la
+  //   primera. Con el WHERE status = 'pending' solo una de las dos queda guardada.
+  const result = await db.symptomReport.updateMany({
+    where: { id, status: 'pending' },
     data: { status: 'reviewed', recommendation: data.recommendation, reviewedAt: new Date() },
   });
 
+  if (result.count === 0) {
+    const existing = await db.symptomReport.findUnique({ where: { id } });
+    if (!existing) throw new NotFoundError('Reporte no encontrado.');
+    throw new BadRequestError(
+      'Este reporte ya fue revisado por otra persona del staff.',
+      'REPORT_ALREADY_REVIEWED',
+    );
+  }
+
+  const updated = await db.symptomReport.findUniqueOrThrow({ where: { id } });
   return toResponse(updated);
 }

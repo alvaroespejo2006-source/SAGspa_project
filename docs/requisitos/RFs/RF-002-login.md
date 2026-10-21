@@ -13,8 +13,8 @@
 El sistema debe autenticar tanto a clientes como a staff mediante un único endpoint
 `POST /api/v1/auth/login`, emitiendo un `accessToken` y un `refreshToken`. Antes de emitir los
 tokens, verifica que el email esté confirmado. La respuesta incluye el `role` del usuario, que el
-frontend usa para decidir si muestra el semáforo del cliente (`ClienteView`) o el panel
-administrativo (`AdminView`).
+frontend usa para decidir si navega al área del cliente (`/app`) o al panel
+administrativo (`/staff`).
 
 ---
 
@@ -39,7 +39,7 @@ administrativo (`AdminView`).
 | ------ | -------------------------------------------------------------------------------------------- |
 | RN-020 | El sistema busca al usuario por email; si no existe, retorna HTTP 401 con mensaje genérico.  |
 | RN-021 | Se verifica la contraseña con bcrypt; si no coincide, retorna HTTP 401 genérico.             |
-| RN-022 | El mensaje de error de login es siempre "Invalid credentials" — no revela si el email existe. |
+| RN-022 | El mensaje de error de login es siempre "Credenciales inválidas." — no revela si el email existe. |
 | RN-023 | Si el usuario existe y la contraseña es correcta pero `isEmailVerified = false`, retorna HTTP 403. |
 | RN-024 | El `accessToken` expira en 15 minutos.                                                        |
 | RN-025 | El `refreshToken` expira en 7 días.                                                            |
@@ -58,26 +58,43 @@ administrativo (`AdminView`).
 **Output éxito** (HTTP 200):
 ```json
 {
-  "accessToken": "eyJ...",
-  "refreshToken": "eyJ...",
-  "tokenType": "bearer",
-  "user": {
-    "id": "uuid",
-    "firstName": "string",
-    "role": "client",
-    "isEmailVerified": true
+  "success": true,
+  "data": {
+    "accessToken": "eyJ...",
+    "refreshToken": "eyJ...",
+    "tokenType": "bearer",
+    "user": {
+      "id": "uuid",
+      "firstName": "string",
+      "role": "client",
+      "isEmailVerified": true
+    }
   }
 }
 ```
 
 **Output error 401**:
 ```json
-{ "error": "Invalid credentials" }
+{ "success": false, "error": { "code": "UNAUTHORIZED", "message": "Credenciales inválidas." } }
 ```
 
 **Output error 403** (email no verificado):
 ```json
-{ "error": "Email not verified. Please check your inbox." }
+{
+  "success": false,
+  "error": {
+    "code": "FORBIDDEN",
+    "message": "Debes verificar tu email antes de iniciar sesión. Revisa tu bandeja de entrada."
+  }
+}
+```
+
+**Output error 429** (rate limit):
+```json
+{
+  "success": false,
+  "error": { "code": "RATE_LIMIT_EXCEEDED", "message": "Demasiados intentos. Intenta de nuevo en 15 minutos." }
+}
 ```
 
 ---

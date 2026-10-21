@@ -31,6 +31,12 @@ export default defineConfig({
     //   archivo borra los datos que otro está usando → fallos intermitentes.
     fileParallelism: false,
 
+    // ¿Qué? Hasta 15 s por test (el valor por defecto de Vitest es 5 s).
+    // ¿Para qué? Cada login/registro corre bcrypt con 12 rondas (~0,3–1 s según la máquina).
+    //   Los tests de aceptación de HU-005 a HU-008 encadenan hasta 4 de esos hashes y, con la
+    //   suite completa, a veces pasaban de 5 s y fallaban por tiempo, no por lógica.
+    testTimeout: 15_000,
+
     // ¿Qué? Archivos que se ejecutan antes de cada suite de tests.
     // ¿Para qué? El setup.ts limpia la BD entre tests para garantizar aislamiento.
     setupFiles: ['./src/tests/setup.ts'],

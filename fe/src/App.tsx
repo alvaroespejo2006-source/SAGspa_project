@@ -40,6 +40,7 @@ import { StaffSupplierOrdersPage } from '@/pages/staff/StaffSupplierOrdersPage';
 import { StaffSalesPage } from '@/pages/staff/StaffSalesPage';
 import { StaffSalesReportPage } from '@/pages/staff/StaffSalesReportPage';
 import { StaffCreateAccountPage } from '@/pages/staff/StaffCreateAccountPage';
+import { StaffEmergencyPage } from '@/pages/staff/StaffEmergencyPage';
 
 function App() {
   return (
@@ -202,6 +203,15 @@ function App() {
             element={
               <ProtectedRoute role="staff">
                 <Layout><StaffCreateAccountPage /></Layout>
+              </ProtectedRoute>
+            }
+          />
+          {/* ¿Qué? Configurar emergencia (HU-011, CA-011.4). */}
+          <Route
+            path="/staff/emergencia"
+            element={
+              <ProtectedRoute role="staff">
+                <Layout><StaffEmergencyPage /></Layout>
               </ProtectedRoute>
             }
           />

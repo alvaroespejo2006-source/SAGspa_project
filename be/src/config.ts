@@ -23,6 +23,8 @@ const envSchema = z.object({
   MAIL_PORT: z.coerce.number().default(1025),
   MAIL_FROM: z.string().email().default('noreply@groomingspa.com'),
   FRONTEND_URL: z.string().url().default('http://localhost:5173'),
+  // ¿Qué? Zona horaria del negocio para "hoy" y "mañana" en las citas (HU-009).
+  BUSINESS_TIMEZONE: z.string().default('America/Bogota'),
 });
 
 // ¿Qué? Ejecuta la validación del schema sobre las variables de entorno actuales.

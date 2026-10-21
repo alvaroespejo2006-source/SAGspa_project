@@ -14,8 +14,10 @@
 | **Título**       | Listado de mascotas del cliente    |
 | **Módulo**       | Mascotas                              |
 | **Prioridad**    | Alta                                     |
-| **Estado**       | Por implementar                           |
+| **Estado**       | Implementada                               |
 | **RF asociados** | RF-013                                     |
+| **Responsable**  | Alvaro Espejo |
+| **Rama**         | `feature/HU-013-listado-mascotas` |
 
 ---
 
@@ -38,6 +40,12 @@
 - **Dado que** aún no tengo mascotas registradas,
 - **cuando** abro el formulario de cita o de síntoma,
 - **entonces** veo un mensaje indicando que debo acercarme a GroomingSpa para que registren a mi mascota.
+- Si mis mascotas no se pudieron cargar (sin conexión), veo el error y no este aviso.
+
+### CA-013.3 — Ver "Mis mascotas" *(nuevo)*
+- **Dado que** tengo mascotas registradas,
+- **cuando** entro al inicio de la app,
+- **entonces** veo la sección "Mis mascotas" con el nombre, la especie, la raza y la edad de cada una.
 
 ---
 
@@ -52,3 +60,5 @@
 ## Notas técnicas
 
 - Devuelve un arreglo vacío (no error) cuando el cliente no tiene mascotas registradas todavía.
+- Solo devuelve las mascotas del cliente del token; el staff recibe 403 en `/pets/me`.
+- En toda la API, un `:id` que no es un UUID responde **404** "No se encontró el recurso solicitado." (antes 500).

@@ -8,6 +8,7 @@
 import { apiClient } from './axios';
 import type {
   ApiResponse,
+  AuthTokens,
   ChangePasswordRequest,
   CreateStaffRequest,
   ForgotPasswordRequest,
@@ -15,8 +16,10 @@ import type {
   LoginResponse,
   RefreshTokenRequest,
   RegisterRequest,
+  ResendVerificationRequest,
   ResetPasswordRequest,
   User,
+  ValidateResetTokenRequest,
   VerifyEmailRequest,
 } from '@/types/auth';
 
@@ -35,8 +38,13 @@ export async function refreshToken(data: RefreshTokenRequest): Promise<LoginResp
   return res.data.data;
 }
 
+// ¿Qué? Cambia la contraseña y guarda los tokens nuevos que devuelve el backend (HU-004).
+// ¿Para qué? Al cambiar la contraseña el backend invalida los refresh tokens anteriores;
+//   sin guardar los nuevos, esta misma sesión se cerraría al expirar el access token.
 export async function changePassword(data: ChangePasswordRequest): Promise<void> {
-  await apiClient.post('/auth/change-password', data);
+  const res = await apiClient.post<ApiResponse<AuthTokens>>('/auth/change-password', data);
+  localStorage.setItem('accessToken', res.data.data.accessToken);
+  localStorage.setItem('refreshToken', res.data.data.refreshToken);
 }
 
 export async function forgotPassword(data: ForgotPasswordRequest): Promise<void> {
@@ -45,6 +53,12 @@ export async function forgotPassword(data: ForgotPasswordRequest): Promise<void>
 
 export async function resetPassword(data: ResetPasswordRequest): Promise<void> {
   await apiClient.post('/auth/reset-password', data);
+}
+
+// ¿Qué? Pregunta si el enlace de recuperación sigue vigente, sin cambiar nada (HU-005).
+// ¿Para qué? Avisar "el enlace expiró" apenas se abre la página (CA-005.2).
+export async function validateResetToken(data: ValidateResetTokenRequest): Promise<void> {
+  await apiClient.post('/auth/reset-password/validate', data);
 }
 
 // ¿Qué? Obtener el perfil del usuario actualmente autenticado.
@@ -56,6 +70,11 @@ export async function getMe(): Promise<User> {
 
 export async function verifyEmail(data: VerifyEmailRequest): Promise<void> {
   await apiClient.post('/auth/verify-email', data);
+}
+
+// ¿Qué? Pide un nuevo enlace de verificación cuando el anterior expiró (HU-003).
+export async function resendVerification(data: ResendVerificationRequest): Promise<void> {
+  await apiClient.post('/auth/resend-verification', data);
 }
 
 // ¿Qué? Crea una nueva cuenta de staff (RF-008) — solo la puede llamar otro staff autenticado.

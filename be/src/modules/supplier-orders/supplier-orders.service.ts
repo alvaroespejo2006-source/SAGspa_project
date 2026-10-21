@@ -7,6 +7,7 @@
 
 import { db } from '../../db/index.js';
 import { NotFoundError, BadRequestError } from '../../middlewares/error.middleware.js';
+import { todayInBusinessTimezone } from '../../utils/dates.js';
 import type { CreateSupplierOrderInput } from './supplier-orders.schema.js';
 
 export interface SupplierOrderResponse {
@@ -30,10 +31,28 @@ export async function createSupplierOrder(
 ): Promise<SupplierOrderResponse> {
   const supplier = await db.supplier.findUnique({ where: { id: data.supplierId } });
   if (!supplier) throw new NotFoundError('Proveedor no encontrado.');
+  // ¿Qué? Un proveedor desactivado (HU-020) ya no recibe pedidos nuevos (HU-021).
+  if (!supplier.active) {
+    throw new BadRequestError(
+      `"${supplier.name}" está desactivado. Actívalo antes de hacerle un pedido.`,
+      'SUPPLIER_INACTIVE',
+    );
+  }
 
+  // ¿Qué? Junta las líneas repetidas del mismo producto (2 + 3 → 5), como en HU-016.
+  const lines = new Map<string, { quantity: number; unitCost: number }>();
   for (const item of data.items) {
-    const product = await db.product.findUnique({ where: { id: item.productId } });
-    if (!product) throw new NotFoundError(`Producto no encontrado: ${item.productId}`);
+    const prev = lines.get(item.productId);
+    lines.set(item.productId, {
+      quantity: (prev?.quantity ?? 0) + item.quantity,
+      unitCost: item.unitCost,
+    });
+  }
+
+  for (const productId of lines.keys()) {
+    const product = await db.product.findUnique({ where: { id: productId } });
+    // ¿Qué? Antes el mensaje mostraba el UUID del producto.
+    if (!product) throw new NotFoundError('Uno de los productos del pedido ya no existe.');
   }
 
   const order = await db.supplierOrder.create({
@@ -41,10 +60,10 @@ export async function createSupplierOrder(
       supplierId: data.supplierId,
       expectedDate: data.expectedDate ? new Date(`${data.expectedDate}T00:00:00.000Z`) : undefined,
       items: {
-        create: data.items.map((i) => ({
-          productId: i.productId,
-          quantity: i.quantity,
-          unitCost: i.unitCost,
+        create: [...lines].map(([productId, line]) => ({
+          productId,
+          quantity: line.quantity,
+          unitCost: line.unitCost,
         })),
       },
     },
@@ -88,11 +107,26 @@ export async function receiveSupplierOrder(
   receivedDate?: string,
 ): Promise<SupplierOrderResponse> {
   return db.$transaction(async (tx) => {
+    // ¿Qué? Marca el pedido como recibido con un UPDATE CONDICIONAL (solo si sigue `ordered`)
+    //   ANTES de sumar el stock (CA-021.3).
+    // ¿Para qué? Antes se leía el estado y luego se sumaba: si dos personas lo marcaban como
+    //   recibido a la vez, las dos pasaban la revisión y el stock se sumaba dos veces o más.
+    // ¿Impacto? La fecha por defecto es HOY en Colombia (con new Date() era el día UTC).
+    const received = await tx.supplierOrder.updateMany({
+      where: { id, status: 'ordered' },
+      data: {
+        status: 'received',
+        receivedDate: new Date(`${receivedDate ?? todayInBusinessTimezone()}T00:00:00.000Z`),
+      },
+    });
+
     const order = await tx.supplierOrder.findUnique({ where: { id }, include: { items: true } });
     if (!order) throw new NotFoundError('Pedido a proveedor no encontrado.');
-
-    if (order.status === 'received') {
-      throw new BadRequestError('Este pedido ya fue marcado como recibido.');
+    if (received.count === 0) {
+      throw new BadRequestError(
+        'Este pedido ya fue marcado como recibido: el stock ya se sumó.',
+        'SUPPLIER_ORDER_ALREADY_RECEIVED',
+      );
     }
 
     for (const item of order.items) {
@@ -102,12 +136,8 @@ export async function receiveSupplierOrder(
       });
     }
 
-    const updated = await tx.supplierOrder.update({
+    const updated = await tx.supplierOrder.findUniqueOrThrow({
       where: { id },
-      data: {
-        status: 'received',
-        receivedDate: receivedDate ? new Date(`${receivedDate}T00:00:00.000Z`) : new Date(),
-      },
       include: { items: { include: { product: true } }, supplier: true },
     });
 

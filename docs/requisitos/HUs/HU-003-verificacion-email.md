@@ -14,8 +14,10 @@
 | **Título**       | Verificación de email     |
 | **Módulo**       | Autenticación               |
 | **Prioridad**    | Alta                         |
-| **Estado**       | Por implementar              |
+| **Estado**       | Implementada              |
 | **RF asociados** | RF-003                        |
+| **Responsable**  | Juan Rodriguez            |
+| **Rama**         | `feature/HU-003-verificacion-email` |
 
 ---
 
@@ -37,12 +39,22 @@
 ### CA-003.2 — Token expirado
 - **Dado que** el enlace de verificación tiene más de 24 horas,
 - **cuando** hago clic en él,
-- **entonces** debo ver un mensaje indicando que el enlace expiró.
+- **entonces** debo ver el mensaje "El enlace de verificación ha expirado. Solicita uno nuevo." y un formulario para pedir un enlace nuevo con mi correo.
 
 ### CA-003.3 — Token ya usado
 - **Dado que** ya verifiqué mi cuenta anteriormente,
 - **cuando** vuelvo a hacer clic en el mismo enlace,
-- **entonces** debo ver un mensaje indicando que ese enlace ya fue utilizado.
+- **entonces** debo ver el mensaje "Este enlace ya fue utilizado. Tu cuenta ya está verificada." y un botón para iniciar sesión.
+
+### CA-003.4 — Enlace sin token o inválido
+- **Dado que** abro `/verify-email` sin token o con un token que no existe,
+- **cuando** la página carga,
+- **entonces** veo un mensaje de error, no se activa ninguna cuenta y puedo pedir un enlace nuevo.
+
+### CA-003.5 — Reenvío del enlace
+- **Dado que** mi enlace expiró,
+- **cuando** escribo mi correo y pido un enlace nuevo,
+- **entonces** veo "Si tu cuenta está pendiente de verificación, te enviamos un nuevo enlace a tu correo." y el enlace anterior deja de servir.
 
 ---
 
@@ -51,9 +63,11 @@
 | Método | Ruta                          | Descripción                          |
 | ------ | ----------------------------- | --------------------------------------- |
 | POST   | `/api/v1/auth/verify-email`   | Activa la cuenta con el token del email |
+| POST   | `/api/v1/auth/resend-verification` | Envía un enlace nuevo si la cuenta no está verificada |
 
 ---
 
 ## Notas técnicas
 
 - El token de verificación expira en 24 horas y es de un solo uso.
+- Cada fallo devuelve un `code` distinto (`TOKEN_INVALID`, `TOKEN_ALREADY_USED`, `TOKEN_EXPIRED`) que el frontend usa para decidir qué pantalla mostrar.

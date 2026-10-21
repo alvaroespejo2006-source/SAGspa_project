@@ -40,7 +40,9 @@ import type {
   ChangePasswordInput,
   ForgotPasswordInput,
   ResetPasswordInput,
+  ValidateResetTokenInput,
   VerifyEmailInput,
+  ResendVerificationInput,
 } from './auth.schema.js';
 
 // ¿Qué? Tipo de respuesta de usuario — nunca expone hashedPassword.
@@ -216,7 +218,7 @@ export async function loginUser(data: LoginInput, ip?: string): Promise<LoginRes
 // ¿Para qué? Permitir sesiones largas sin requerir re-login cada 15 minutos.
 // ¿Impacto? Un refresh token inválido o expirado debe retornar 401 claramente.
 export async function refreshTokens(data: RefreshTokenInput): Promise<TokenResponse> {
-  let payload: { sub: string; email: string };
+  let payload: { sub: string; email: string; iat: number };
   try {
     payload = verifyRefreshToken(data.refreshToken);
   } catch {
@@ -229,6 +231,15 @@ export async function refreshTokens(data: RefreshTokenInput): Promise<TokenRespo
 
   if (!user) {
     throw new UnauthorizedError('Usuario no encontrado.');
+  }
+
+  // ¿Qué? Rechaza refresh tokens emitidos antes del último cambio de contraseña (HU-004).
+  // ¿Para qué? Si alguien robó una sesión, cambiar la contraseña la corta en cuanto su
+  //   access token (15 min) expire, en vez de dejarla viva hasta 7 días.
+  // ¿Impacto? `iat` está en segundos: se compara contra el segundo del cambio, así los tokens
+  //   que se emiten justo después del cambio (mismo segundo) siguen siendo válidos.
+  if (user.passwordChangedAt && payload.iat < Math.floor(user.passwordChangedAt.getTime() / 1000)) {
+    throw new UnauthorizedError('Tu contraseña cambió. Inicia sesión de nuevo.');
   }
 
   return {
@@ -244,24 +255,40 @@ export async function refreshTokens(data: RefreshTokenInput): Promise<TokenRespo
 export async function changeUserPassword(
   userId: string,
   data: ChangePasswordInput,
-): Promise<void> {
+): Promise<TokenResponse> {
   const user = await db.user.findUnique({
     where: { id: userId },
   });
 
   if (!user) throw new NotFoundError('Usuario no encontrado.');
 
+  // ¿Qué? 400 (no 401) con un código propio.
+  // ¿Para qué? El interceptor de Axios interpreta todo 401 como "sesión expirada": renovaba
+  //   los tokens, reintentaba el cambio y, si el refresh fallaba, sacaba al usuario al login
+  //   solo por equivocarse de contraseña. 401 queda reservado para problemas del token.
   const valid = await verifyPassword(data.currentPassword, user.hashedPassword);
-  if (!valid) throw new UnauthorizedError('La contraseña actual es incorrecta.');
+  if (!valid) {
+    throw new BadRequestError('La contraseña actual es incorrecta.', 'INVALID_CURRENT_PASSWORD');
+  }
 
   const hashed = await hashPassword(data.newPassword);
+  const now = new Date();
 
+  // ¿Qué? passwordChangedAt invalida los refresh tokens anteriores (ver refreshTokens).
   await db.user.update({
     where: { id: userId },
-    data: { hashedPassword: hashed, updatedAt: new Date() },
+    data: { hashedPassword: hashed, updatedAt: now, passwordChangedAt: now },
   });
 
   logPasswordChanged(userId);
+
+  // ¿Qué? Tokens nuevos para la sesión actual.
+  // ¿Para qué? Quien cambió la contraseña sigue conectado; las demás sesiones se cierran.
+  return {
+    accessToken: generateAccessToken(user.id, user.email, user.role),
+    refreshToken: generateRefreshToken(user.id, user.email, user.role),
+    tokenType: 'bearer',
+  };
 }
 
 // ¿Qué? Genera un token de recuperación y envía el email al usuario.
@@ -282,33 +309,66 @@ export async function requestPasswordReset(data: ForgotPasswordInput): Promise<v
   // ¿Qué? Expira en 1 hora.
   const expiresAt = new Date(Date.now() + 60 * 60 * 1000);
 
-  await db.passwordResetToken.create({
-    data: {
-      userId: user.id,
-      token: resetToken,
-      expiresAt,
-    },
-  });
+  // ¿Qué? Invalida los enlaces anteriores que sigan pendientes y crea el nuevo, juntos.
+  // ¿Para qué? Si el usuario pide el correo varias veces, solo el último enlace sirve
+  //   (mismo criterio que el reenvío de verificación en HU-003).
+  await db.$transaction([
+    db.passwordResetToken.updateMany({
+      where: { userId: user.id, used: false },
+      data: { used: true },
+    }),
+    db.passwordResetToken.create({
+      data: {
+        userId: user.id,
+        token: resetToken,
+        expiresAt,
+      },
+    }),
+  ]);
 
   await sendPasswordResetEmail(user.email, resetToken);
   logPasswordResetRequested();
 }
 
-// ¿Qué? Valida el token de reset y actualiza la contraseña del usuario.
-// ¿Para qué? Completar el flujo de recuperación con verificación segura del token.
-// ¿Impacto? El token debe ser único, no expirado y no usado — cualquier fallo es 400.
-export async function resetUserPassword(data: ResetPasswordInput): Promise<void> {
-  const tokenRecord = await db.passwordResetToken.findFirst({
-    where: {
-      token: data.token,
-      used: false,
-      expiresAt: { gt: new Date() },
-    },
-  });
+// ¿Qué? Busca un token de recuperación y lanza un error distinto por cada caso de fallo.
+// ¿Para qué? CA-005.2 pide decir que el enlace expiró; con un solo mensaje para todo
+//   ("inválido o ha expirado") el usuario no sabía que basta con pedir otro.
+// ¿Impacto? Se revisa `used` antes que `expiresAt`, igual que en verifyEmail (HU-003).
+async function findValidResetToken(token: string) {
+  const tokenRecord = await db.passwordResetToken.findFirst({ where: { token } });
 
   if (!tokenRecord) {
-    throw new BadRequestError('El token es inválido o ha expirado.');
+    throw new BadRequestError('El enlace de recuperación no es válido.', 'TOKEN_INVALID');
   }
+  if (tokenRecord.used) {
+    throw new BadRequestError(
+      'Este enlace ya fue utilizado. Solicita uno nuevo si aún necesitas cambiar tu contraseña.',
+      'TOKEN_ALREADY_USED',
+    );
+  }
+  if (tokenRecord.expiresAt <= new Date()) {
+    throw new BadRequestError(
+      'El enlace de recuperación expiró. Solicita uno nuevo.',
+      'TOKEN_EXPIRED',
+    );
+  }
+
+  return tokenRecord;
+}
+
+// ¿Qué? Comprueba si un enlace de recuperación todavía sirve, sin cambiar nada.
+// ¿Para qué? CA-005.2 dice que el aviso de "expiró" se ve al hacer clic en el enlace,
+//   no después de escribir la nueva contraseña. La página lo consulta al abrirse.
+export async function validateResetToken(data: ValidateResetTokenInput): Promise<void> {
+  await findValidResetToken(data.token);
+}
+
+// ¿Qué? Valida el token de reset y actualiza la contraseña del usuario.
+// ¿Para qué? Completar el flujo de recuperación con verificación segura del token.
+// ¿Impacto? El token debe existir, no estar usado y no haber expirado — cada caso es un 400
+//   con su propio código (TOKEN_INVALID, TOKEN_ALREADY_USED, TOKEN_EXPIRED).
+export async function resetUserPassword(data: ResetPasswordInput): Promise<void> {
+  const tokenRecord = await findValidResetToken(data.token);
 
   const hashed = await hashPassword(data.newPassword);
 
@@ -317,7 +377,8 @@ export async function resetUserPassword(data: ResetPasswordInput): Promise<void>
   await db.$transaction([
     db.user.update({
       where: { id: tokenRecord.userId },
-      data: { hashedPassword: hashed, updatedAt: new Date() },
+      // ¿Qué? passwordChangedAt también aquí: restablecer la contraseña cierra las sesiones abiertas.
+      data: { hashedPassword: hashed, updatedAt: new Date(), passwordChangedAt: new Date() },
     }),
     db.passwordResetToken.update({
       where: { id: tokenRecord.id },
@@ -332,16 +393,29 @@ export async function resetUserPassword(data: ResetPasswordInput): Promise<void>
 // ¿Impacto? Sin esta verificación, el login queda bloqueado con 403 indefinidamente.
 //   El token es de un solo uso — una vez consumido, no puede reutilizarse.
 export async function verifyEmail(data: VerifyEmailInput): Promise<void> {
+  // ¿Qué? Se busca el token solo por su valor y luego se evalúa cada caso por separado.
+  // ¿Para qué? CA-003.2 y CA-003.3 piden mensajes distintos para "expirado" y "ya usado"
+  //   (RN-040 a RN-042); con un solo findFirst filtrado ambos casos se veían iguales.
+  // ¿Impacto? Se revisa `used` antes que `expiresAt`: si el enlace ya activó la cuenta,
+  //   decir "ya fue utilizado" es más útil que "expiró", aunque ambas cosas sean ciertas.
   const tokenRecord = await db.emailVerificationToken.findFirst({
-    where: {
-      token: data.token,
-      used: false,
-      expiresAt: { gt: new Date() },
-    },
+    where: { token: data.token },
   });
 
   if (!tokenRecord) {
-    throw new BadRequestError('El token de verificación es inválido o ha expirado.');
+    throw new BadRequestError('Token de verificación inválido.', 'TOKEN_INVALID');
+  }
+  if (tokenRecord.used) {
+    throw new BadRequestError(
+      'Este enlace ya fue utilizado. Tu cuenta ya está verificada, inicia sesión.',
+      'TOKEN_ALREADY_USED',
+    );
+  }
+  if (tokenRecord.expiresAt <= new Date()) {
+    throw new BadRequestError(
+      'El enlace de verificación ha expirado. Solicita uno nuevo.',
+      'TOKEN_EXPIRED',
+    );
   }
 
   // ¿Qué? Actualiza isEmailVerified=true y marca el token como usado, en una transacción real.
@@ -358,4 +432,24 @@ export async function verifyEmail(data: VerifyEmailInput): Promise<void> {
   ]);
 
   logEmailVerified(tokenRecord.userId);
+}
+
+// ¿Qué? Genera y envía un enlace de verificación nuevo para una cuenta aún sin verificar.
+// ¿Para qué? Sin esto, si el enlace de 24 h expiraba (CA-003.2) el usuario no tenía
+//   forma de activar su cuenta: no podía iniciar sesión ni volver a registrarse.
+// ¿Impacto? Siempre termina sin error aunque el correo no exista o ya esté verificado —
+//   el controller responde lo mismo en todos los casos para no revelar qué cuentas
+//   existen (mismo criterio que forgot-password, OWASP A07).
+export async function resendVerificationEmail(data: ResendVerificationInput): Promise<void> {
+  const user = await db.user.findUnique({ where: { email: data.email } });
+  if (!user || user.isEmailVerified) return;
+
+  // ¿Qué? Invalida los enlaces anteriores que sigan pendientes.
+  // ¿Para qué? Que solo el último correo recibido sirva para activar la cuenta.
+  await db.emailVerificationToken.updateMany({
+    where: { userId: user.id, used: false },
+    data: { used: true },
+  });
+
+  await issueEmailVerification(user);
 }

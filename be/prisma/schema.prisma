@@ -118,6 +118,10 @@ model User {
   isEmailVerified Boolean  @default(false) @map("is_email_verified")
   createdAt       DateTime @default(now()) @map("created_at")
   updatedAt       DateTime @default(now()) @map("updated_at")
+  // ¿Qué? Momento del último cambio o restablecimiento de contraseña (HU-004).
+  // ¿Para qué? Rechazar en /auth/refresh los refresh tokens emitidos antes de ese momento,
+  //   para cerrar las demás sesiones abiertas con la contraseña anterior.
+  passwordChangedAt DateTime? @map("password_changed_at")
 
   passwordResetTokens     PasswordResetToken[]
   emailVerificationTokens EmailVerificationToken[]

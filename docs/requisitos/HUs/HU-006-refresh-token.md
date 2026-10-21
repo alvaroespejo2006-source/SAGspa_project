@@ -14,8 +14,10 @@
 | **Título**       | Renovación de sesión        |
 | **Módulo**       | Autenticación                 |
 | **Prioridad**    | Media                           |
-| **Estado**       | Por implementar                  |
+| **Estado**       | Implementada                     |
 | **RF asociados** | RF-006                            |
+| **Responsable**  | Yesid Valencia                    |
+| **Rama**         | `feature/HU-006-renovacion-sesion` |
 
 ---
 
@@ -32,12 +34,18 @@
 ### CA-006.1 — Renovación transparente
 - **Dado que** mi `accessToken` expiró pero mi `refreshToken` sigue siendo válido,
 - **cuando** hago cualquier acción en la app,
-- **entonces** el frontend obtiene un nuevo `accessToken` automáticamente, sin que yo lo note.
+- **entonces** el frontend obtiene un nuevo `accessToken` automáticamente, repite la acción y yo no lo noto.
+- Si varias acciones fallan a la vez, se hace **un solo** refresh y todas esperan ese resultado.
 
 ### CA-006.2 — Refresh token expirado
 - **Dado que** mi `refreshToken` también expiró (más de 7 días sin actividad),
 - **cuando** intento realizar una acción,
-- **entonces** soy redirigido al login con un mensaje indicando que mi sesión expiró.
+- **entonces** soy redirigido al login con el mensaje "Tu sesión expiró. Inicia sesión de nuevo para continuar.".
+
+### CA-006.3 — Falla de red durante la renovación *(nuevo)*
+- **Dado que** mi `refreshToken` sigue siendo válido,
+- **cuando** la renovación falla por un problema de red, un límite de intentos (429) o un error del servidor,
+- **entonces** mi sesión **no** se cierra; solo veo el error de esa acción y puedo intentar de nuevo.
 
 ---
 
@@ -51,4 +59,6 @@
 
 ## Notas técnicas
 
-- Es un flujo invisible para el usuario, manejado por un interceptor HTTP en el frontend.
+- Es un flujo invisible para el usuario, manejado por un interceptor HTTP en el frontend (`fe/src/api/axios.ts`).
+- Solo un 401/403 del refresh cierra la sesión; se redirige a `/login?sesion=expirada`.
+- `/auth/refresh` tiene su propio límite de intentos (100 cada 15 min por IP), separado del de login (RN-066).

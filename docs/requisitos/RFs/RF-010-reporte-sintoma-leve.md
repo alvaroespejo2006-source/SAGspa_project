@@ -42,11 +42,13 @@ El sistema debe permitir a un cliente autenticado reportar síntomas leves de su
 | ------ | ------------------------------------------------------------------------------------------------ |
 | RN-100 | Solo un cliente autenticado puede crear un reporte de síntoma.                                    |
 | RN-101 | El `petId` debe existir y pertenecer al `clientId` autenticado.                                    |
-| RN-102 | El campo `symptom` es obligatorio y debe describir el síntoma observado.                          |
-| RN-103 | El campo `daysWithSymptom` es un número entero mayor o igual a 1.                                  |
+| RN-102 | El campo `symptom` es obligatorio, de 3 a 500 caracteres **después de quitar los espacios** (un texto de solo espacios se rechaza). |
+| RN-103 | El campo `daysWithSymptom` es un número entero entre 1 y 365.                                      |
 | RN-104 | Todo reporte nuevo se crea con `status = 'pending'`.                                               |
 | RN-105 | El reporte **no** incluye campos de diagnóstico, tratamiento o medicamento — solo síntoma y recomendación de texto libre. |
 | RN-106 | Solo el staff puede cambiar `status` a `'reviewed'` y completar el campo `recommendation`.          |
+| RN-107 | *(nueva)* `GET /api/v1/symptom-reports/me` incluye `pet: { id, name }` en cada reporte.          |
+| RN-108 | *(nueva)* Los errores 422 de este endpoint están en español (por ejemplo, "Describe el síntoma de tu mascota."). |
 
 ---
 

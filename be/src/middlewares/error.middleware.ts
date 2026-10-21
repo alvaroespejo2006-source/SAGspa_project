@@ -46,23 +46,27 @@ export class ForbiddenError extends AppError {
 // ¿Qué? 404 Not Found — el recurso solicitado no existe en la base de datos.
 // ¿Para qué? Comunicar al cliente que la entidad buscada (usuario, token, etc.) no fue hallada.
 // ¿Impacto? El cliente puede mostrar un mensaje apropiado sin confundirlo con un error del servidor.
+// ¿Qué? `code` opcional — ej. PRODUCT_UNAVAILABLE al confirmar un pedido (HU-016).
 export class NotFoundError extends AppError {
-  constructor(message = 'Not found') { super(message, 404, 'NOT_FOUND'); }
+  constructor(message = 'Not found', code = 'NOT_FOUND') { super(message, 404, code); }
 }
 
 // ¿Qué? 409 Conflict — el recurso ya existe y no se puede crear duplicado.
 // ¿Para qué? Indicar al cliente que el dato que intenta registrar viola una restricción
 //   de unicidad, como un email ya registrado.
 // ¿Impacto? El cliente puede mostrar "este email ya está en uso" sin ambigüedad.
+// ¿Qué? `code` opcional, igual que BadRequestError — ej. OUT_OF_STOCK al confirmar un pedido (HU-016).
 export class ConflictError extends AppError {
-  constructor(message: string) { super(message, 409, 'CONFLICT'); }
+  constructor(message: string, code = 'CONFLICT') { super(message, 409, code); }
 }
 
 // ¿Qué? 400 Bad Request para errores de lógica de negocio (token inválido, usado, expirado).
 // ¿Para qué? Distinguir errores de dominio (400) de errores de validación de schema (422).
 // ¿Impacto? El cliente sabe que el recurso fue encontrado pero su estado lo hace inutilizable.
+// ¿Qué? `code` es opcional — permite al frontend distinguir casos con el mismo status 400
+//   (ej: TOKEN_EXPIRED vs TOKEN_ALREADY_USED en la verificación de email, HU-003).
 export class BadRequestError extends AppError {
-  constructor(message: string) { super(message, 400, 'BAD_REQUEST'); }
+  constructor(message: string, code = 'BAD_REQUEST') { super(message, 400, code); }
 }
 
 // ¿Qué? 409 Conflict con un código propio: la mascota tiene una condición de piel que exige

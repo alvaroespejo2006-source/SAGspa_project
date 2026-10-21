@@ -116,6 +116,12 @@ export function StaffHomePage() {
           description="Reabastecer productos y confirmar recepción."
         />
         <SectionCard
+          to="/staff/emergencia"
+          emoji="🚨"
+          title="Configurar emergencia"
+          description="Editar los números de emergencia y el mapa que ven los clientes."
+        />
+        <SectionCard
           to="/staff/nueva-cuenta"
           emoji="👤"
           title="Nueva cuenta de staff"

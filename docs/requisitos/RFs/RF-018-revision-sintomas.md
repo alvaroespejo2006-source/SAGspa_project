@@ -1,6 +1,6 @@
 <!--
   ¿Qué? Requisito funcional que describe cómo el staff revisa los reportes de síntomas leves.
-  ¿Para qué? Definir el endpoint PUT /api/v1/symptom-reports/:id, contraparte de RF-010.
+  ¿Para qué? Definir el endpoint PUT /api/v1/staff/symptom-reports/:id, contraparte de RF-010.
   ¿Impacto? Sin esto, los reportes de síntomas enviados por clientes quedarían sin respuesta.
 -->
 
@@ -35,6 +35,8 @@ recomendación, mediante `GET /api/v1/staff/symptom-reports` y
 | RN-180 | Solo un usuario con `role = 'staff'` puede ver y responder reportes de síntomas.                  |
 | RN-181 | El campo `recommendation` es obligatorio para poder marcar un reporte como `reviewed`.            |
 | RN-182 | No se permite registrar diagnóstico, medicamento ni dosis — solo texto de recomendación (ver límite de alcance en RF-010). |
+| RN-183 | *(nueva)* La recomendación es obligatoria **después de quitar espacios** (1 a 1000 caracteres). |
+| RN-184 | *(nueva)* La revisión es un `UPDATE` condicional (`status = 'pending'`): si dos personas responden a la vez, solo se guarda una; la otra recibe 400 `REPORT_ALREADY_REVIEWED`. |
 
 ---
 

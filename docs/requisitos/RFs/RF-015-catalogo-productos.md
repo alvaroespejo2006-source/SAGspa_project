@@ -35,11 +35,13 @@ existencia disponible debe poder consultarse públicamente para que el cliente a
 | ID     | Regla                                                                                         |
 | ------ | ------------------------------------------------------------------------------------------------ |
 | RN-150 | Solo un usuario con `role = 'staff'` puede crear, editar o desactivar productos.                  |
-| RN-151 | El campo `price` debe ser un número mayor a 0.                                                    |
-| RN-152 | El campo `stock` es un número entero mayor o igual a 0 — representa unidades disponibles para la venta. |
+| RN-151 | El campo `price` debe ser un número mayor a 0 y como máximo 99.999.999 (`Decimal(10, 2)`; antes un valor mayor respondía 500). |
+| RN-152 | El campo `stock` es un número entero de 0 a 100.000 — representa unidades disponibles para la venta. |
 | RN-153 | Un producto con pedidos asociados no se elimina físicamente — se desactiva (`active = false`).    |
 | RN-154 | El catálogo público (`GET /api/v1/products`) solo muestra productos con `active = true`.           |
 | RN-155 | El `stock` se actualiza automáticamente al confirmarse un pedido (RF-016) o al recibir mercancía de un proveedor (ver módulo de Inventario, RF-020). |
+| RN-156 | *(nueva)* `name` tiene de 2 a 150 caracteres **después de quitar espacios**; una `category` vacía se guarda como `null`. Crear y editar usan las mismas reglas y mensajes en español. |
+| RN-157 | *(nueva)* `DELETE /api/v1/products/:id` responde `message` ("Producto eliminado." o que se desactivó por tener pedidos o ventas) además de `data.softDeleted`. |
 
 ---
 

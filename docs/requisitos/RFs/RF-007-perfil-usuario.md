@@ -35,6 +35,8 @@ el endpoint `GET /api/v1/users/me`.
 | RN-071 | La respuesta nunca incluye el campo `hashedPassword`.                                           |
 | RN-072 | La respuesta incluye `role` e `isEmailVerified` para que el frontend pueda usarlos.              |
 | RN-073 | El `userId` viene del token, nunca de parámetros de ruta (evita IDOR).                           |
+| RN-074 | *(nueva)* Solo se aceptan access tokens firmados con HS256; un token manipulado, sin firma o de tipo `refresh` responde 401. |
+| RN-075 | *(nueva)* El frontend solo borra la sesión guardada si `/users/me` responde 401/403, no por un error de red. |
 
 ---
 
@@ -42,7 +44,7 @@ el endpoint `GET /api/v1/users/me`.
 
 **Input**: ninguno (el `userId` viene del JWT).
 
-**Output éxito** (HTTP 200):
+**Output éxito** (HTTP 200) — dentro de `{ "success": true, "data": { ... } }`:
 ```json
 {
   "id": "uuid",
@@ -53,14 +55,22 @@ el endpoint `GET /api/v1/users/me`.
   "email": "string",
   "role": "client",
   "isEmailVerified": true,
-  "createdAt": "timestamp"
+  "createdAt": "timestamp",
+  "updatedAt": "timestamp | null"
 }
 ```
 
-**Output error 401** (token inválido):
+**Output error 401** (token inválido, expirado o de una cuenta eliminada):
 ```json
-{ "error": "Unauthorized" }
+{ "success": false, "error": { "code": "UNAUTHORIZED", "message": "Tu sesión no es válida o expiró. Inicia sesión de nuevo." } }
 ```
+
+| Caso | `error.message` |
+| ---- | --------------- |
+| Sin header `Authorization` | Debes iniciar sesión para continuar. |
+| Token manipulado, corrupto o expirado | Tu sesión no es válida o expiró. Inicia sesión de nuevo. |
+| Refresh token en lugar de access token | Tu sesión no es válida. Inicia sesión de nuevo. |
+| La cuenta del token ya no existe | Tu sesión no es válida. Inicia sesión de nuevo. |
 
 ---
 

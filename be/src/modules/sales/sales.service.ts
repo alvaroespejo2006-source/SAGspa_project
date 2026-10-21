@@ -9,6 +9,7 @@
 import { db } from '../../db/index.js';
 import { NotFoundError, ConflictError } from '../../middlewares/error.middleware.js';
 import type { CreateSaleInput, SalesReportQuery } from './sales.schema.js';
+import { businessDayRange } from '../../utils/dates.js';
 
 export interface SaleResponse {
   id: string;
@@ -27,6 +28,12 @@ export async function createSale(
   registeredById: string,
   data: CreateSaleInput,
 ): Promise<SaleResponse> {
+  // ¿Qué? Junta las líneas repetidas del mismo producto (2 + 1 → 3), como en HU-016.
+  const quantities = new Map<string, number>();
+  for (const item of data.items) {
+    quantities.set(item.productId, (quantities.get(item.productId) ?? 0) + item.quantity);
+  }
+
   return db.$transaction(async (tx) => {
     if (data.clientId) {
       const client = await tx.user.findUnique({ where: { id: data.clientId } });
@@ -38,23 +45,38 @@ export async function createSale(
     let total = 0;
     const lineItems: { productId: string; name: string; quantity: number; unitPrice: number }[] = [];
 
-    for (const item of data.items) {
-      const product = await tx.product.findUnique({ where: { id: item.productId } });
+    for (const [productId, quantity] of quantities) {
+      const product = await tx.product.findUnique({ where: { id: productId } });
+      // ¿Qué? El mensaje nombra el producto (antes mostraba su UUID).
       if (!product || !product.active) {
-        throw new NotFoundError(`Producto no encontrado: ${item.productId}`);
+        throw new NotFoundError(
+          product
+            ? `"${product.name}" ya no está disponible para la venta.`
+            : 'Uno de los productos de la venta ya no existe.',
+          'PRODUCT_UNAVAILABLE',
+        );
       }
-      if (product.stock < item.quantity) {
-        throw new ConflictError(`Stock insuficiente para el producto: ${product.name}`);
+
+      // ¿Qué? Descuento CONDICIONAL y atómico (CA-023.3), igual que los pedidos de la app (HU-016).
+      // ¿Para qué? Antes se leía el stock y luego se descontaba: una venta de mostrador y un
+      //   pedido de la app (o dos ventas) al mismo tiempo podían dejar el stock negativo.
+      const reserved = await tx.product.updateMany({
+        where: { id: productId, stock: { gte: quantity } },
+        data: { stock: { decrement: quantity } },
+      });
+      if (reserved.count === 0) {
+        const left = (await tx.product.findUnique({ where: { id: productId } }))?.stock ?? 0;
+        throw new ConflictError(
+          left === 0
+            ? `No hay existencias de "${product.name}".`
+            : `Solo quedan ${left} unidades de "${product.name}".`,
+          'OUT_OF_STOCK',
+        );
       }
 
       const unitPrice = Number(product.price);
-      total += unitPrice * item.quantity;
-      lineItems.push({ productId: product.id, name: product.name, quantity: item.quantity, unitPrice });
-
-      await tx.product.update({
-        where: { id: product.id },
-        data: { stock: { decrement: item.quantity } },
-      });
+      total += unitPrice * quantity;
+      lineItems.push({ productId: product.id, name: product.name, quantity, unitPrice });
     }
 
     const sale = await tx.sale.create({
@@ -91,19 +113,24 @@ export interface SalesReport {
   to: string;
   totalRevenue: number;
   totalOrders: number;
+  // ¿Qué? Cuántas de esas transacciones vinieron de la app y cuántas del mostrador (CA-022.3).
+  appOrders: number;
+  counterSales: number;
   byProduct: { productId: string; name: string; unitsSold: number; revenue: number }[];
 }
 
 // ¿Qué? Combina pedidos completados (RF-016) y ventas de mostrador (RF-023) en un solo
 //   reporte, para que el staff no tenga que sumarlos por separado (RF-022).
 export async function getSalesReport(query: SalesReportQuery): Promise<SalesReport> {
-  const from = new Date(`${query.from}T00:00:00.000Z`);
-  // ¿Qué? `to` incluye todo el día — se extiende hasta el final de esa fecha.
-  const to = new Date(`${query.to}T23:59:59.999Z`);
+  // ¿Qué? Días calendario de Colombia, no de UTC (HU-022).
+  const { start: from, end: to } = businessDayRange(query.from, query.to);
 
   const [orders, sales] = await Promise.all([
+    // ¿Qué? Un pedido de la app cuenta el día en que se PAGÓ (al completarse), no el día en que
+    //   se hizo: `updatedAt` se fija al cerrar el pedido (orders.service, updateOrderStatus).
+    // ¿Para qué? Un pedido hecho el 30 y pagado el 2 es venta del día 2, no del mes anterior.
     db.order.findMany({
-      where: { status: 'completed', createdAt: { gte: from, lte: to } },
+      where: { status: 'completed', updatedAt: { gte: from, lte: to } },
       include: { items: { include: { product: true } } },
     }),
     db.sale.findMany({
@@ -132,6 +159,11 @@ export async function getSalesReport(query: SalesReportQuery): Promise<SalesRepo
     to: query.to,
     totalRevenue,
     totalOrders,
-    byProduct: Array.from(byProductMap.entries()).map(([productId, v]) => ({ productId, ...v })),
+    appOrders: orders.length,
+    counterSales: sales.length,
+    // ¿Qué? Del producto que más dinero dejó al que menos.
+    byProduct: Array.from(byProductMap.entries())
+      .map(([productId, v]) => ({ productId, ...v }))
+      .sort((a, b) => b.revenue - a.revenue),
   };
 }
